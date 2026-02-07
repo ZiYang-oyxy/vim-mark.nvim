@@ -1184,6 +1184,18 @@ function M.save(slot)
   return result ~= 0
 end
 
+local function load_default_silently()
+  local previous_internal_load = M._is_internal_load
+  M._is_internal_load = true
+  local ok, loaded = pcall(M.load, nil, true)
+  M._is_internal_load = previous_internal_load
+  if not ok then
+    report_error(loaded)
+    return false
+  end
+  return loaded
+end
+
 function M.get_definition_commands(one_liner)
   local marks = M.to_list()
   if #marks == 0 then
@@ -1376,7 +1388,19 @@ local function show_mark_list_picker()
   end)
 end
 
+local function ensure_marks_before_list()
+  if config().auto_load then
+    return
+  end
+  if state_mod.used_count(state()) > 0 then
+    save_marks()
+    return
+  end
+  load_default_silently()
+end
+
 function M.list()
+  ensure_marks_before_list()
   if config().ui.float_list then
     show_mark_list_window()
     return
@@ -1965,16 +1989,12 @@ function M.setup(opts)
   register_autocmds()
   set_cascade_context()
 
-  if config().auto_load and not M._setup_done then
-    local variable = persist.variable_name(nil)
-    if vim.g[variable] ~= nil then
-      M._is_internal_load = true
-      M.load(nil, true)
-      M._is_internal_load = false
-    else
-      refresh_scope()
-    end
-  else
+  local loaded = false
+  if config().auto_load and not M._setup_done and persist.has_data(nil) then
+    loaded = load_default_silently()
+  end
+
+  if not loaded then
     refresh_scope()
   end
 

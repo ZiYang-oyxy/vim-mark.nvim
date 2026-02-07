@@ -4,16 +4,43 @@ local function is_upper_slot(slot)
   return slot:match("^%u+$") ~= nil
 end
 
+local function is_default_slot(slot)
+  return slot == nil or slot == ""
+end
+
 function M.default_slot()
-  return "marks"
+  return "MARKS"
 end
 
 function M.variable_name(slot)
   local value = slot
-  if value == nil or value == "" then
+  if is_default_slot(value) then
     value = M.default_slot()
   end
   return ("MARK_%s"):format(value)
+end
+
+function M.default_load_variables()
+  return {
+    M.variable_name("MARKS"),
+    M.variable_name("marks"),
+  }
+end
+
+function M.load_variables(slot)
+  if is_default_slot(slot) then
+    return M.default_load_variables()
+  end
+  return { M.variable_name(slot) }
+end
+
+function M.has_data(slot)
+  for _, variable in ipairs(M.load_variables(slot)) do
+    if vim.g[variable] ~= nil then
+      return true
+    end
+  end
+  return false
 end
 
 function M.slot_completion(arg_lead)
@@ -72,7 +99,7 @@ function M.save(state, slot)
   local variable = M.variable_name(slot)
   local marks = M.serialize(state)
   vim.g[variable] = marks
-  if slot == nil or slot == "" then
+  if is_default_slot(slot) then
     vim.g.MARK_ENABLED = state.enabled and 1 or 0
   end
   if #marks == 0 then
@@ -82,13 +109,21 @@ function M.save(state, slot)
 end
 
 function M.load(state, slot)
-  local variable = M.variable_name(slot)
-  local marks = vim.g[variable]
+  local variables = M.load_variables(slot)
+  local marks
+  for _, variable in ipairs(variables) do
+    local value = vim.g[variable]
+    if type(value) == "table" then
+      marks = value
+      break
+    end
+  end
   if type(marks) ~= "table" then
-    return nil, ("No marks stored under %s%s"):format(
-      variable,
-      is_upper_slot(slot or "") and "" or ", and persistence not configured"
-    )
+    if is_default_slot(slot) then
+      return nil, ("No marks stored under %s"):format(table.concat(variables, " or "))
+    end
+    return nil,
+      ("No marks stored under %s%s"):format(M.variable_name(slot), is_upper_slot(slot or "") and "" or ", and persistence not configured")
   end
   M.apply_loaded(state, marks)
   local enabled = vim.g.MARK_ENABLED

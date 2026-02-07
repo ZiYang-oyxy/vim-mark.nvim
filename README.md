@@ -136,9 +136,13 @@ List UI behavior:
 
 - `:MarkSave [slot]` stores mark definitions in `g:MARK_<slot>`
 - `:MarkLoad [slot]` restores from the same slot
-- Default slot is `marks` (`g:MARK_marks`)
+- Default slot is `MARKS` (`g:MARK_MARKS`)
+- Default load also falls back to `g:MARK_marks` for compatibility
 - `auto_save` persists marks on `VimLeavePre`
 - `auto_load` restores marks during first setup when data exists
+- With `auto_load = false`, `:MarkList` syncs on demand:
+  - if marks already exist in memory, they are saved to the default slot
+  - if no marks exist in memory, it tries loading from persistent storage
 
 ## Palette customization
 

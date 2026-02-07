@@ -265,15 +265,14 @@ file. For this to work, the "!" flag must be part of the 'viminfo' setting: >
     set viminfo^=!  " Save and restore global variables.
 Marks can also be stored in |session-file|s with this setting: >
     set sessionoptions+=globals	" Save and restore global variables.
-If you've configured the session-files but not viminfo, |:MarkLoad| and
-|:MarkSave| will default to a slot name that works with session files, i.e.
-the variable g:MARK_marks, instead of g:MARK_MARKS. Alternatively, if you've
-configured both but want to explicitly persist the marks into the session file
-and have it restored when that session is loaded, use >
+If you want to explicitly persist the marks into the session file and have
+them restored when that session is loaded, use >
     :MarkSave marks
 and either set |g:mwAutoLoadMarks| (automatic restore on session load) or use >
     :MarkLoad marks
 <								   *:MarkLoad*
+For the Lua Neovim runtime, the default slot is g:MARK_MARKS. For
+compatibility, loading without {slot} also checks g:MARK_marks.
 :MarkLoad 		Restore the marks from the previous Vim session. All
 			current marks are discarded.
 :MarkLoad {slot}	Restore the marks stored in the named {slot}. All
@@ -304,6 +303,9 @@ session via |:MarkLoad|, to avoid that you accidentally drag along outdated
 highlightings from Vim session to session, and be surprised by the arbitrary
 highlight groups and occasional appearance of forgotten marks. If you want to
 automatically restore any marks, set |g:mwAutoLoadMarks|.
+In the Lua Neovim runtime, when automatic loading is disabled, |:MarkList|
+performs lazy synchronization: existing in-memory marks are first saved, and
+otherwise persisted marks are loaded before listing.
 
 You can also initialize some marks (even using particular highlight groups) to
 static values, e.g. by including this in |vimrc|: >
