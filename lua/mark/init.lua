@@ -13,6 +13,7 @@ M._autocmd_group = nil
 M._applied_keymaps = {}
 M._is_internal_load = false
 M._updating_windows = false
+M._search_progress_cache = {}
 M._search_cmd = {
   armed = false,
   active = false,
@@ -532,7 +533,6 @@ local function parse_mark_argument(argument)
 end
 
 local search_messages_enabled = true
-local search_progress_enabled = false
 
 local function no_mark_error_message()
   if not search_messages_enabled then
@@ -556,18 +556,6 @@ local function error_message(search_type, search_pattern, is_backward)
   end
 end
 
-local function wrap_message(search_type, _, is_backward)
-  if not search_messages_enabled then
-    return
-  end
-  local message = ("%s search hit %s, continuing at %s"):format(
-    search_type,
-    is_backward and "TOP" or "BOTTOM",
-    is_backward and "BOTTOM" or "TOP"
-  )
-  echo_message({ { trim_message(message), "WarningMsg" } }, false, {})
-end
-
 local function all_mark_pattern()
   local patterns = {}
   for index = 1, state().mark_num do
@@ -578,34 +566,71 @@ local function all_mark_pattern()
   return table.concat(patterns, "\\|")
 end
 
+local function search_progress_cache_for_buffer(bufnr)
+  local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local cache = M._search_progress_cache[bufnr]
+  if cache and cache.changedtick == changedtick then
+    return cache
+  end
+  cache = {
+    changedtick = changedtick,
+    by_pattern = {},
+  }
+  M._search_progress_cache[bufnr] = cache
+  return cache
+end
+
 local function collect_match_positions(pattern)
   if not pattern or pattern == "" then
     return nil
   end
+  local bufnr = vim.api.nvim_get_current_buf()
   local compiled_pattern = (is_ignore_case(pattern) and "\\c" or "\\C") .. normalize_magic(pattern)
-  local ok, result = pcall(vim.fn.matchbufline, vim.api.nvim_get_current_buf(), compiled_pattern, 1, "$")
+  local cache = search_progress_cache_for_buffer(bufnr)
+  local cached = cache.by_pattern[compiled_pattern]
+  if cached then
+    return cached
+  end
+
+  local ok, result = pcall(vim.fn.matchbufline, bufnr, compiled_pattern, 1, "$")
   if not ok or type(result) ~= "table" then
     return nil
   end
 
   local positions = {}
+  local index_by_position = {}
   for _, match in ipairs(result) do
     local line = tonumber(match.lnum) or 0
     local byteidx = tonumber(match.byteidx) or -1
     if line > 0 and byteidx >= 0 then
-      positions[#positions + 1] = { line, byteidx + 1 }
+      local col = byteidx + 1
+      positions[#positions + 1] = { line, col }
+      index_by_position[("%d:%d"):format(line, col)] = #positions
     end
   end
-  return positions
+
+  local entry = {
+    positions = positions,
+    index_by_position = index_by_position,
+  }
+  cache.by_pattern[compiled_pattern] = entry
+  return entry
 end
 
 local function position_index(positions, target)
   if not positions or not target or #target ~= 2 then
     return nil
   end
-  for index, position in ipairs(positions) do
-    if position[1] == target[1] and position[2] == target[2] then
-      return index
+  local key = ("%d:%d"):format(target[1], target[2])
+  local mapped_index = positions.index_by_position and positions.index_by_position[key]
+  if mapped_index then
+    return mapped_index
+  end
+  if positions.positions then
+    for index, position in ipairs(positions.positions) do
+      if position[1] == target[1] and position[2] == target[2] then
+        return index
+      end
     end
   end
   return nil
@@ -613,50 +638,46 @@ end
 
 local function search_progress_suffix()
   local group_pattern, group_position = M.current_mark()
-  if type(group_pattern) ~= "string" or group_pattern == "" then
-    return ""
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local current_position = group_position
+  if type(current_position) ~= "table" or #current_position ~= 2 then
+    current_position = { cursor[1], cursor[2] + 1 }
   end
 
-  local group_matches = collect_match_positions(group_pattern)
+  local group_matches
+  if type(group_pattern) == "string" and group_pattern ~= "" then
+    group_matches = collect_match_positions(group_pattern)
+  end
+  local group_current = position_index(group_matches, current_position) or 0
+  local group_total = (group_matches and group_matches.positions) and #group_matches.positions or 0
+  local cfg = config() or {}
+  if not cfg.search_global_progress then
+    return ("(%d/%d)"):format(group_current, group_total)
+  end
+
   local global_matches = collect_match_positions(all_mark_pattern())
-  local group_current = position_index(group_matches, group_position)
-  local global_current = position_index(global_matches, group_position)
-  local group_total = group_matches and #group_matches or 0
-  local global_total = global_matches and #global_matches or 0
-  local chunks = {}
-  if group_current and group_total > 0 then
-    chunks[#chunks + 1] = ("[%d/%d]"):format(group_current, group_total)
-  end
-  if global_current and global_total > 0 then
-    chunks[#chunks + 1] = ("[%d/%d]"):format(global_current, global_total)
-  end
-  return table.concat(chunks)
+  local global_current = position_index(global_matches, current_position) or 0
+  local global_total = (global_matches and global_matches.positions) and #global_matches.positions or 0
+  return ("(%d/%d) (%d/%d)"):format(group_current, group_total, global_current, global_total)
 end
 
 local function safe_search_progress_suffix()
-  if not search_progress_enabled then
-    return ""
-  end
   local ok, suffix = pcall(search_progress_suffix)
-  if not ok or type(suffix) ~= "string" then
-    return ""
+  if not ok or type(suffix) ~= "string" or suffix == "" then
+    local cfg = config() or {}
+    return cfg.search_global_progress and "(0/0) (0/0)" or "(0/0)"
   end
   return suffix
 end
 
-local function echo_search_pattern(search_type, search_pattern, is_backward, progress_suffix)
+local function echo_search_progress(progress_suffix)
   if not search_messages_enabled then
     return
   end
-  local message = (is_backward and "?" or "/") .. search_pattern
-  local chunks = {
-    { search_type, "SearchSpecialSearchType" },
-    { trim_message(message), "Normal" },
-  }
-  if progress_suffix and progress_suffix ~= "" then
-    chunks[#chunks + 1] = { (" %s"):format(progress_suffix), "Normal" }
-  end
-  echo_message(chunks, false, {})
+  local cfg = config() or {}
+  local fallback = cfg.search_global_progress and "(0/0) (0/0)" or "(0/0)"
+  local message = (type(progress_suffix) == "string" and progress_suffix ~= "") and progress_suffix or fallback
+  echo_message({ { message, "Normal" } }, false, {})
 end
 
 local function same_position(a, b)
@@ -713,11 +734,7 @@ local function search(pattern, count, is_backward, current_mark_position, search
   if line > 0 and not is_stuck_at_current_mark then
     vim.cmd([[normal! zv]])
     mark_enable(true, false)
-    if is_wrapped then
-      wrap_message(enrich_search_type(search_type), pattern, is_backward)
-    else
-      echo_search_pattern(enrich_search_type(search_type), pattern, is_backward, safe_search_progress_suffix())
-    end
+    echo_search_progress(safe_search_progress_suffix())
     return true
   end
 
@@ -727,7 +744,7 @@ local function search(pattern, count, is_backward, current_mark_position, search
   end
   mark_enable(true, false)
   if line > 0 and is_stuck_at_current_mark and is_wrapped then
-    wrap_message(enrich_search_type(search_type), pattern, is_backward)
+    echo_search_progress(safe_search_progress_suffix())
     return true
   end
   error_message(search_type, pattern, is_backward)
@@ -1267,13 +1284,17 @@ local function collect_list_entries()
   local used_count = 0
   for index = 1, st.mark_num do
     local pattern = st.patterns[index]
+    local used = pattern ~= ""
+    local match_positions = used and collect_match_positions(pattern) or nil
+    local match_count = (match_positions and match_positions.positions) and #match_positions.positions or 0
     entries[#entries + 1] = {
       group = index,
       pattern = pattern,
       text = (pattern ~= "" and pattern or "<empty>"),
-      used = pattern ~= "",
+      used = used,
+      count = match_count,
     }
-    if pattern ~= "" then
+    if used then
       used_count = used_count + 1
     end
   end
@@ -1292,9 +1313,31 @@ local function show_mark_list_window()
 
   close_mark_list_window()
   local source_win = vim.api.nvim_get_current_win()
-  local lines = {}
+  local function pad_right(text, width)
+    local padding = math.max(0, width - vim.fn.strdisplaywidth(text))
+    return text .. string.rep(" ", padding)
+  end
+  local function pad_left(text, width)
+    local padding = math.max(0, width - vim.fn.strdisplaywidth(text))
+    return string.rep(" ", padding) .. text
+  end
+
+  local pattern_width = vim.fn.strdisplaywidth("Pattern")
+  local count_width = vim.fn.strdisplaywidth("Count")
   for _, entry in ipairs(entries) do
-    lines[#lines + 1] = entry.text
+    pattern_width = math.max(pattern_width, vim.fn.strdisplaywidth(entry.text))
+    count_width = math.max(count_width, vim.fn.strdisplaywidth(tostring(entry.count)))
+  end
+
+  local lines = {
+    ("Grp  %s  %s"):format(pad_right("Pattern", pattern_width), pad_left("Count", count_width)),
+  }
+  for _, entry in ipairs(entries) do
+    lines[#lines + 1] = ("%3d  %s  %s"):format(
+      entry.group,
+      pad_right(entry.text, pattern_width),
+      pad_left(tostring(entry.count), count_width)
+    )
   end
 
   local width = 0
@@ -1322,10 +1365,17 @@ local function show_mark_list_window()
   })
   vim.wo[mark_list_winid].wrap = false
   vim.wo[mark_list_winid].cursorline = true
+  if #lines > 1 then
+    vim.api.nvim_win_set_cursor(mark_list_winid, { 2, 0 })
+  end
+
+  vim.api.nvim_buf_add_highlight(buf, mark_list_ns, "Title", 0, 0, -1)
 
   for line_index, entry in ipairs(entries) do
     if entry.used then
-      vim.api.nvim_buf_add_highlight(buf, mark_list_ns, ("MarkWord%d"):format(entry.group), line_index - 1, 0, -1)
+      local start_col = 5
+      local end_col = start_col + #entry.text
+      vim.api.nvim_buf_add_highlight(buf, mark_list_ns, ("MarkWord%d"):format(entry.group), line_index, start_col, end_col)
     end
   end
 
@@ -1336,7 +1386,7 @@ local function show_mark_list_window()
       return
     end
     local cursor = vim.api.nvim_win_get_cursor(mark_list_winid)
-    local entry = entries[cursor[1]]
+    local entry = entries[cursor[1] - 1]
     if not entry then
       return
     end
@@ -1929,6 +1979,13 @@ local function register_autocmds()
       end
     end,
   })
+
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = M._autocmd_group,
+    callback = function(args)
+      M._search_progress_cache[args.buf] = nil
+    end,
+  })
 end
 
 local function set_cascade_context()
@@ -1981,6 +2038,7 @@ end
 
 function M.setup(opts)
   M._config = config_mod.normalize(opts)
+  M._search_progress_cache = {}
   reset_search_cmd_state()
   vim.g.loaded_mark = 1
   initialize_state_and_palette(M._setup_done)

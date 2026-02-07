@@ -354,11 +354,13 @@ highlight group via [N].
 			In the Lua/Neovim implementation, this opens an
 			interactive picker via |vim.ui.select()| by default.
 			Only the match pattern text is shown for each group
-			(inactive groups appear as "<empty>").
+			(inactive groups appear as "<empty>") in the picker.
 			Choosing an entry jumps to the selected mark group.
 			Set >
 			    require('mark').setup({ ui = { float_list = true } })
-			to use the legacy floating list window instead.
+			to use the floating list window with a first-line
+			column description and a right-side count column.
+			Counts are for the current buffer.
 
 MARK HIGHLIGHTING PALETTES					*mark-palette*
 
@@ -468,13 +470,24 @@ b) Alternatively, you can completely override all built-in palettes in your
     " Make it the default:
     let g:mwDefaultHighlightingPalette = 'mypalette'
 <
-The search type highlighting (in the search message) can be changed via: >
+The mark information prefix highlighting can be changed via: >
     highlight link SearchSpecialSearchType MoreMsg
 <
-Successful mark searches (without wrap messages) also show match progress in
-the message as [group-current/group-total][global-current/global-total], e.g.
-[2/3][3/8]. Counts are based on the current buffer; global order follows
-match positions in the buffer.
+Successful mark searches show match progress in the message without showing
+the matched pattern text. By default, only current-group progress is shown as
+(group-current/group-total), e.g. (2/3).
+
+Enable global progress (with possible additional cost on large buffers) via: >
+    let g:mwSearchGlobalProgress = 1
+<
+or in Lua setup: >
+    require('mark').setup({ search_global_progress = true })
+<
+With that enabled, progress is shown as
+(group-current/group-total) (global-current/global-total), e.g. (2/3) (3/8).
+Counts are based on the current buffer; global order follows match positions in
+the buffer. If the current index cannot be determined exactly (for some complex
+patterns), 0 is shown for that index, e.g. (0/3) (0/8).
 
 								 *g:mwHistAdd*
 By default, any marked words are also added to the search (/) and input (@)
@@ -494,6 +507,16 @@ If you have set 'ignorecase', but want marks to be case-insensitive, you can
 override the default behavior of using 'ignorecase' by setting: >
 	let g:mwIgnoreCase = 0
 <
+						 *g:mwSearchGlobalProgress*
+To show global search progress in successful search messages (in addition to
+group-local progress), set: >
+	let g:mwSearchGlobalProgress = 1
+<
+This is disabled by default to avoid extra computation on large buffers.
+Equivalent Lua setup option: >
+	require('mark').setup({ search_global_progress = true })
+<
+
 						     *g:mwExclusionPredicates*
 To exclude some tab pages, windows, or buffers / filetypes from showing mark
 highlightings (you can still "blindly" navigate to marks in there with the

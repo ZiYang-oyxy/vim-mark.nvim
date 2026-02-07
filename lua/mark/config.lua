@@ -28,6 +28,7 @@ M.defaults = {
   exclude_predicates = { default_exclusion_predicate },
   match_priority = -10,
   ignorecase = nil,
+  search_global_progress = false,
   keymaps = {
     preset = "lazyvim",
   },
@@ -49,6 +50,7 @@ local legacy_map = {
   mwExclusionPredicates = "exclude_predicates",
   mwMaxMatchPriority = "match_priority",
   mwIgnoreCase = "ignorecase",
+  mwSearchGlobalProgress = "search_global_progress",
 }
 
 local function read_legacy_globals(config)
@@ -91,6 +93,7 @@ function M.normalize(opts)
   config.palette_count = normalize_palette_count(config.palette_count)
   config.direct_group_jump_mapping_num = math.max(0, tonumber(config.direct_group_jump_mapping_num) or 0)
   config.match_priority = tonumber(config.match_priority) or -10
+  config.search_global_progress = to_bool(config.search_global_progress, false)
   config.keymaps = config.keymaps or {}
   config.keymaps.preset = config.keymaps.preset or "lazyvim"
   config.ui = vim.tbl_deep_extend("force", copy(M.defaults.ui), config.ui or {})

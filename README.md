@@ -117,6 +117,7 @@ require("mark").setup({
   },
   match_priority = -10,
   ignorecase = nil,
+  search_global_progress = false,
   keymaps = { preset = "lazyvim" },
   ui = {
     enhanced_picker = false,
@@ -126,11 +127,16 @@ require("mark").setup({
 })
 ```
 
+Search message progress:
+
+- By default, successful searches show current-group progress only, e.g. `(2/7)`
+- Set `search_global_progress = true` to also show global progress, e.g. `(2/7) (28/36)`
+
 List UI behavior:
 
 - `:Marks` / `<leader>ml` uses `vim.ui.select` by default
-- Mark entries show only the pattern text (empty groups show `<empty>`)
-- Set `ui.float_list = true` to use the legacy floating list window
+- Picker entries show only the pattern text (empty groups show `<empty>`)
+- Set `ui.float_list = true` to use the floating list window with `Grp / Pattern / Count` columns
 
 ## Persistence
 
