@@ -33,6 +33,11 @@ Primary commands:
     :MarkPalette {name}
     :MarkName[!] [group] [name]
 
+NOTE on keymaps:
+    Mapping examples in this help keep the legacy Vimscript-style defaults
+    (e.g. <Leader>r, <Leader>n). In the Lua `lazyvim` preset, default mappings
+    are <leader>mr and <leader>mn; see README.md for the current defaults.
+
 ==============================================================================
 DESCRIPTION						    *mark-description*
 

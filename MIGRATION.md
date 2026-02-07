@@ -38,8 +38,8 @@ Default is `preset = "lazyvim"`:
 
 - `<leader>m`: mark word
 - `<leader>M`: mark partial word
-- `<leader>r`: mark regex
-- `<leader>n`: clear current / disable marks
+- `<leader>mr`: mark regex
+- `<leader>mn`: clear current / disable marks
 - `<leader>mc`: clear all
 - `<leader>mt`: toggle marks
 - `<leader>ml`: list marks

@@ -86,8 +86,8 @@ Default preset is `lazyvim`.
 
 - `<leader>m` mark current word (or visual selection)
 - `<leader>M` mark partial word
-- `<leader>r` mark regex (normal/visual)
-- `<leader>n` clear mark under cursor / by count
+- `<leader>mr` mark regex (normal/visual)
+- `<leader>mn` clear mark under cursor / by count
 - `<leader>mc` clear all
 - `<leader>mt` toggle marks
 - `<leader>ml` list marks (picker by default)
