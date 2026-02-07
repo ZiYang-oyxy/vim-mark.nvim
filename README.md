@@ -132,8 +132,31 @@ require("mark").setup({
 
 Search message progress:
 
-- By default, successful searches show current-group progress only, e.g. `(2/7)`
-- Set `search_global_progress = true` to also show global progress, e.g. `(2/7) (28/36)`
+- Successful searches show a two-line progress block for the current group, e.g.:
+
+  ```
+  138,333 / 138,835
+  ███████████████████████████▉ 99.64%
+  ```
+
+- Set `search_global_progress = true` to append a labeled global block:
+
+  ```
+  Group   138,333 / 138,835
+  ███████████████████████████▉ 99.64%
+  Global  3,920 / 4,998
+  █████████████████████▊       78.44%
+  ```
+
+- To enable global progress in your Neovim config:
+
+  ```lua
+  require("mark").setup({
+    search_global_progress = true,
+  })
+  ```
+
+- Progress messages use highlight group `MarkSearchProgress` (bold by default)
 
 List UI behavior:
 

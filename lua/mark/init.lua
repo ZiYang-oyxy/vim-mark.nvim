@@ -67,6 +67,10 @@ local function define_preview_highlight()
   vim.cmd("highlight default link MarkSearchPreview Search")
 end
 
+local function define_search_progress_highlight()
+  vim.cmd("highlight default MarkSearchProgress gui=bold cterm=bold")
+end
+
 local function escape_text(text)
   return text:gsub("\\", "\\\\"):gsub("%^", "\\^"):gsub("%$", "\\$"):gsub("%.", "\\."):gsub("%*", "\\*"):gsub("%[", "\\[")
     :gsub("~", "\\~"):gsub("\n", "\\n")
@@ -638,7 +642,18 @@ local function position_index(positions, target)
   return nil
 end
 
-local function search_progress_suffix()
+local function progress_snapshot(pattern, current_position)
+  local matches
+  if type(pattern) == "string" and pattern ~= "" then
+    matches = collect_match_positions(pattern)
+  end
+  return {
+    current = position_index(matches, current_position) or 0,
+    total = (matches and matches.positions) and #matches.positions or 0,
+  }
+end
+
+local function search_progress_data()
   local group_pattern, group_position = M.current_mark()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local current_position = group_position
@@ -646,40 +661,127 @@ local function search_progress_suffix()
     current_position = { cursor[1], cursor[2] + 1 }
   end
 
-  local group_matches
-  if type(group_pattern) == "string" and group_pattern ~= "" then
-    group_matches = collect_match_positions(group_pattern)
-  end
-  local group_current = position_index(group_matches, current_position) or 0
-  local group_total = (group_matches and group_matches.positions) and #group_matches.positions or 0
+  local progress = {
+    group = progress_snapshot(group_pattern, current_position),
+  }
   local cfg = config() or {}
+  if cfg.search_global_progress then
+    progress.global = progress_snapshot(all_mark_pattern(), current_position)
+  end
+  return progress
+end
+
+local function normalize_progress_value(value)
+  local numeric = math.floor(tonumber(value) or 0)
+  if numeric < 0 then
+    return 0
+  end
+  return numeric
+end
+
+local function format_count_with_commas(value)
+  local formatted = tostring(normalize_progress_value(value))
+  while true do
+    local next_value, replaced = formatted:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+    formatted = next_value
+    if replaced == 0 then
+      break
+    end
+  end
+  return formatted
+end
+
+local function render_progress_bar(ratio, width)
+  local clamped_ratio = math.max(0, math.min(1, tonumber(ratio) or 0))
+  local normalized_width = math.max(1, math.floor(tonumber(width) or 40))
+  local total_units = clamped_ratio * normalized_width
+  local full_blocks = math.floor(total_units)
+  local partial_steps = math.floor((total_units - full_blocks) * 8 + 0.5)
+  if partial_steps >= 8 then
+    full_blocks = math.min(normalized_width, full_blocks + 1)
+    partial_steps = 0
+  end
+  if full_blocks >= normalized_width then
+    return string.rep("█", normalized_width)
+  end
+  local partial_chars = { "▏", "▎", "▍", "▌", "▋", "▊", "▉" }
+  local bar = string.rep("█", full_blocks)
+  local used = full_blocks
+  if partial_steps > 0 and used < normalized_width then
+    bar = bar .. partial_chars[partial_steps]
+    used = used + 1
+  end
+  if used < normalized_width then
+    bar = bar .. string.rep(" ", normalized_width - used)
+  end
+  return bar
+end
+
+local function format_progress_bar_line(current, total)
+  local current_value = normalize_progress_value(current)
+  local total_value = normalize_progress_value(total)
+  local ratio = total_value > 0 and (current_value / total_value) or 0
+  local clamped_ratio = math.max(0, math.min(1, ratio))
+  local bar = render_progress_bar(clamped_ratio, 28)
+  return ("%s %.2f%%"):format(bar, clamped_ratio * 100)
+end
+
+local function format_progress_count_line(current, total, label)
+  local current_text = format_count_with_commas(current)
+  local total_text = format_count_with_commas(total)
+  if type(label) == "string" and label ~= "" then
+    return ("%-6s  %s / %s"):format(label, current_text, total_text)
+  end
+  return ("%s / %s"):format(current_text, total_text)
+end
+
+local function format_progress_block(current, total, label)
+  return table.concat({
+    format_progress_count_line(current, total, label),
+    format_progress_bar_line(current, total),
+  }, "\n")
+end
+
+local function fallback_search_progress_data()
+  local cfg = config() or {}
+  local fallback = {
+    group = { current = 0, total = 0 },
+  }
+  if cfg.search_global_progress then
+    fallback.global = { current = 0, total = 0 }
+  end
+  return fallback
+end
+
+local function format_search_progress_message(progress)
+  local cfg = config() or {}
+  local safe_progress = type(progress) == "table" and progress or {}
+  local group = type(safe_progress.group) == "table" and safe_progress.group or { current = 0, total = 0 }
   if not cfg.search_global_progress then
-    return ("(%d/%d)"):format(group_current, group_total)
+    return format_progress_block(group.current, group.total)
   end
-
-  local global_matches = collect_match_positions(all_mark_pattern())
-  local global_current = position_index(global_matches, current_position) or 0
-  local global_total = (global_matches and global_matches.positions) and #global_matches.positions or 0
-  return ("(%d/%d) (%d/%d)"):format(group_current, group_total, global_current, global_total)
+  local global = type(safe_progress.global) == "table" and safe_progress.global or { current = 0, total = 0 }
+  return table.concat({
+    format_progress_block(group.current, group.total, "Group"),
+    format_progress_block(global.current, global.total, "Global"),
+  }, "\n")
 end
 
-local function safe_search_progress_suffix()
-  local ok, suffix = pcall(search_progress_suffix)
-  if not ok or type(suffix) ~= "string" or suffix == "" then
-    local cfg = config() or {}
-    return cfg.search_global_progress and "(0/0) (0/0)" or "(0/0)"
+local function safe_search_progress_message()
+  local ok, progress = pcall(search_progress_data)
+  if not ok then
+    return format_search_progress_message(fallback_search_progress_data())
   end
-  return suffix
+  return format_search_progress_message(progress)
 end
 
-local function echo_search_progress(progress_suffix)
+local function echo_search_progress(progress_message)
   if not search_messages_enabled then
     return
   end
-  local cfg = config() or {}
-  local fallback = cfg.search_global_progress and "(0/0) (0/0)" or "(0/0)"
-  local message = (type(progress_suffix) == "string" and progress_suffix ~= "") and progress_suffix or fallback
-  echo_message({ { message, "Normal" } }, false, {})
+  local message = (type(progress_message) == "string" and progress_message ~= "" and progress_message)
+    or format_search_progress_message(fallback_search_progress_data())
+  echo_message({ { message, "MarkSearchProgress" } }, false, {})
 end
 
 local function same_position(a, b)
@@ -736,7 +838,7 @@ local function search(pattern, count, is_backward, current_mark_position, search
   if line > 0 and not is_stuck_at_current_mark then
     vim.cmd([[normal! zv]])
     mark_enable(true, false)
-    echo_search_progress(safe_search_progress_suffix())
+    echo_search_progress(safe_search_progress_message())
     return true
   end
 
@@ -746,7 +848,7 @@ local function search(pattern, count, is_backward, current_mark_position, search
   end
   mark_enable(true, false)
   if line > 0 and is_stuck_at_current_mark and is_wrapped then
-    echo_search_progress(safe_search_progress_suffix())
+    echo_search_progress(safe_search_progress_message())
     return true
   end
   error_message(search_type, pattern, is_backward)
@@ -1962,6 +2064,7 @@ local function register_autocmds()
       local palette, count = config_mod.resolve_palette(config())
       highlight.define_highlights(palette, count, false)
       define_preview_highlight()
+      define_search_progress_highlight()
     end,
   })
 
@@ -2020,6 +2123,7 @@ local function initialize_state_and_palette(reinitialize)
   local old_num = st.mark_num
   highlight.define_highlights(palette, count, reinitialize)
   define_preview_highlight()
+  define_search_progress_highlight()
   if not M._setup_done then
     state_mod.init_arrays(st, count)
   else

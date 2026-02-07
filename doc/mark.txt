@@ -479,7 +479,10 @@ The mark information prefix highlighting can be changed via: >
 <
 Successful mark searches show match progress in the message without showing
 the matched pattern text. By default, only current-group progress is shown as
-(group-current/group-total), e.g. (2/3).
+a two-line block:
+    138,333 / 138,835
+    ███████████████████████████▉ 99.64%
+Progress text uses highlight group MarkSearchProgress (bold by default).
 
 Enable global progress (with possible additional cost on large buffers) via: >
     let g:mwSearchGlobalProgress = 1
@@ -487,11 +490,14 @@ Enable global progress (with possible additional cost on large buffers) via: >
 or in Lua setup: >
     require('mark').setup({ search_global_progress = true })
 <
-With that enabled, progress is shown as
-(group-current/group-total) (global-current/global-total), e.g. (2/3) (3/8).
+With that enabled, a labeled global block is appended:
+    Group   138,333 / 138,835
+    ███████████████████████████▉ 99.64%
+    Global  3,920 / 4,998
+    █████████████████████▊       78.44%
 Counts are based on the current buffer; global order follows match positions in
 the buffer. If the current index cannot be determined exactly (for some complex
-patterns), 0 is shown for that index, e.g. (0/3) (0/8).
+patterns), 0 is shown for that index (e.g. 0 / 3).
 
 								 *g:mwHistAdd*
 By default, any marked words are also added to the search (/) and input (@)
