@@ -202,12 +202,16 @@ SEARCHING						      *mark-searching*
 [count]<Leader>/ [count]<Leader>?
 			Use these six keys to jump to the [count]'th next /
 			previous occurrence of a mark.
-			"/" is intercepted by mark.nvim: while typing, matches
-			are preview-highlighted in the current window. Pressing
-			<CR> keeps Vim's normal search jump and also records
-			the final pattern as a mark. The preview highlight is
-			then cleared and mark highlighting takes over. Aborted
-			searches (<Esc> / <C-c>) are not recorded.
+			"/" search cmdline is intercepted by mark.nvim: while
+			typing, matches are preview-highlighted in the current
+			window. Pressing <CR> keeps Vim's normal search jump
+			and also records the final pattern as a mark. The
+			preview highlight is then cleared and mark highlighting
+			takes over. Native |hlsearch| highlighting is also
+			cleared automatically after <CR>. Aborted searches
+			(<Esc> / <C-c>) are not recorded. This works even when
+			"/" keymaps are customized, because takeover is based
+			on cmdline events.
 
             Cursor over mark                    Cursor not over mark
  ---------------------------------------------------------------------------

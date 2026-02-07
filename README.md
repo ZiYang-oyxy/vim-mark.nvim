@@ -97,6 +97,9 @@ Default preset is `lazyvim`.
 
 Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mappings yourself.
 
+`/` takeover is handled via cmdline events, so search preview / recording still works even if your `/` keymap is customized.
+After pressing `<CR>`, native `hlsearch` highlighting is cleared automatically so mark highlights take over cleanly.
+
 ## Configuration
 
 Default options:

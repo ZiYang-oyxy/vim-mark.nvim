@@ -15,7 +15,6 @@ M._is_internal_load = false
 M._updating_windows = false
 M._search_progress_cache = {}
 M._search_cmd = {
-  armed = false,
   active = false,
   source_winid = nil,
   preview_winid = nil,
@@ -133,7 +132,6 @@ end
 
 local function reset_search_cmd_state()
   local search_cmd = M._search_cmd
-  search_cmd.armed = false
   search_cmd.active = false
   search_cmd.source_winid = nil
   search_cmd.last_cmdline = ""
@@ -173,6 +171,10 @@ local function update_search_preview(pattern)
     search_cmd.preview_winid = winid
     search_cmd.preview_match_id = match_id
   end
+end
+
+local function clear_native_search_highlight()
+  pcall(vim.cmd, "silent! nohlsearch")
 end
 
 local function leave_visual_mode()
@@ -1533,29 +1535,25 @@ local function slot_complete(arg_lead, _, _)
 end
 
 local function clear_registered_keymaps()
+  local owned_prefix = "mark.nvim:"
   for _, mapping in ipairs(M._applied_keymaps) do
-    pcall(vim.keymap.del, mapping.mode, mapping.lhs)
+    local current = vim.fn.maparg(mapping.lhs, mapping.mode, false, true)
+    local current_desc = type(current) == "table" and current.desc or nil
+    if type(current_desc) == "string" and current_desc:sub(1, #owned_prefix) == owned_prefix then
+      pcall(vim.keymap.del, mapping.mode, mapping.lhs)
+    end
   end
   M._applied_keymaps = {}
 end
 
 local function register_keymap(mode, lhs, rhs, opts)
-  vim.keymap.set(mode, lhs, rhs, opts)
+  local map_opts = vim.tbl_extend("force", { desc = ("mark.nvim:%s"):format(lhs) }, opts or {})
+  vim.keymap.set(mode, lhs, rhs, map_opts)
   M._applied_keymaps[#M._applied_keymaps + 1] = { mode = mode, lhs = lhs }
 end
 
 local function apply_keymaps()
   clear_registered_keymaps()
-  register_keymap("n", "/", function()
-    local search_cmd = M._search_cmd
-    search_cmd.armed = true
-    search_cmd.active = false
-    search_cmd.source_winid = vim.api.nvim_get_current_win()
-    search_cmd.last_cmdline = ""
-    clear_search_preview()
-    return "/"
-  end, { expr = true, silent = true, noremap = true })
-
   local preset = config().keymaps.preset
   if preset == "none" then
     return
@@ -1904,14 +1902,9 @@ local function register_autocmds()
     pattern = "/",
     callback = function()
       local search_cmd = M._search_cmd
-      if not search_cmd.armed then
-        return
-      end
       search_cmd.active = true
       search_cmd.last_cmdline = ""
-      if not search_cmd.source_winid or not vim.api.nvim_win_is_valid(search_cmd.source_winid) then
-        search_cmd.source_winid = vim.api.nvim_get_current_win()
-      end
+      search_cmd.source_winid = vim.api.nvim_get_current_win()
       clear_search_preview()
     end,
   })
@@ -1958,6 +1951,7 @@ local function register_autocmds()
           pattern_supplied = true,
           interactive = false,
         })
+        clear_native_search_highlight()
       end)
     end,
   })
