@@ -1,0 +1,9 @@
+lua/mark/init.lua
+lua/mark/config.lua
+lua/mark/state.lua
+lua/mark/highlight.lua
+lua/mark/persist.lua
+lua/mark/cascade.lua
+lua/mark/palettes.lua
+plugin/mark.lua
+doc/mark.txt
