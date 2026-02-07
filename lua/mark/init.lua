@@ -1251,45 +1251,21 @@ end
 
 local function collect_list_entries()
   local st = state()
-  local has_names = false
-  for index = 1, st.mark_num do
-    if st.names[index] ~= "" then
-      has_names = true
-      break
-    end
-  end
   local entries = {}
   local used_count = 0
-  local next_group = get_next_group_index()
   for index = 1, st.mark_num do
     local pattern = st.patterns[index]
-    local marker = ""
-    if st.last_search == index then
-      marker = marker .. "/"
-    end
-    if next_group == index then
-      marker = marker .. ">"
-    end
-    local alt_count = get_alternative_count(pattern)
-    local alt_suffix = alt_count > 1 and (" (" .. alt_count .. ")") or ""
-    local name_suffix = st.names[index] ~= "" and (":" .. st.names[index]) or ""
-    local left
-    if has_names then
-      left = ("%1s%3d%-10s"):format(marker, index, name_suffix .. alt_suffix)
-    else
-      left = ("%1s%3d%-4s"):format(marker, index, alt_suffix)
-    end
     entries[#entries + 1] = {
       group = index,
       pattern = pattern,
-      text = left .. (has_names and "\t" or " ") .. (pattern ~= "" and pattern or "<empty>"),
+      text = (pattern ~= "" and pattern or "<empty>"),
       used = pattern ~= "",
     }
     if pattern ~= "" then
       used_count = used_count + 1
     end
   end
-  return entries, has_names, used_count
+  return entries, false, used_count
 end
 
 local function show_mark_list_window()

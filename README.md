@@ -129,6 +129,7 @@ require("mark").setup({
 List UI behavior:
 
 - `:Marks` / `<leader>ml` uses `vim.ui.select` by default
+- Mark entries show only the pattern text (empty groups show `<empty>`)
 - Set `ui.float_list = true` to use the legacy floating list window
 
 ## Persistence

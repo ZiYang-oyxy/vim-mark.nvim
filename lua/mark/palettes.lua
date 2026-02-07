@@ -11,6 +11,9 @@ M.original = {
   { ctermbg = "Red", ctermfg = "Black", guibg = "#FF7272", guifg = "Black" },
   { ctermbg = "Magenta", ctermfg = "Black", guibg = "#FFB3FF", guifg = "Black" },
   { ctermbg = "Blue", ctermfg = "Black", guibg = "#9999FF", guifg = "Black" },
+  { ctermbg = "Gray", ctermfg = "Black", guibg = "#A3A396", guifg = "#222222" },
+  { ctermbg = "Brown", ctermfg = "Black", guibg = "#FFC4A1", guifg = "#803000" },
+  { ctermbg = "Yellow", ctermfg = "Black", guibg = "#F3FFA1", guifg = "#6F8000" },
 }
 
 M.extended = {
