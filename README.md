@@ -76,7 +76,7 @@ require("mark").setup({
 ### Legacy aliases (enabled by default)
 
 - `:Mark` (legacy compatible behavior)
-- `:Marks` (alias of list)
+- `:Marks` (list marks via picker by default)
 
 Set `legacy_commands = false` to disable legacy aliases.
 
@@ -90,7 +90,7 @@ Default preset is `lazyvim`.
 - `<leader>n` clear mark under cursor / by count
 - `<leader>mc` clear all
 - `<leader>mt` toggle marks
-- `<leader>ml` list marks
+- `<leader>ml` list marks (picker by default)
 - `<leader>m*`, `<leader>m#` search current mark
 - `<leader>m/`, `<leader>m?` search any mark
 - `*`, `#` mark-aware search with fallback to native behavior
@@ -125,6 +125,11 @@ require("mark").setup({
   legacy_commands = true,
 })
 ```
+
+List UI behavior:
+
+- `:Marks` / `<leader>ml` uses `vim.ui.select` by default
+- Set `ui.float_list = true` to use the legacy floating list window
 
 ## Persistence
 

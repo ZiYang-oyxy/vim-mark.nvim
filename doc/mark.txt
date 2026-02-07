@@ -344,6 +344,12 @@ highlight group via [N].
 								      *:Marks*
 :Marks			List all mark highlight groups and the search patterns
 			defined for them.
+			In the Lua/Neovim implementation, this opens an
+			interactive picker via |vim.ui.select()| by default.
+			Choosing an entry jumps to the selected mark group.
+			Set >
+			    require('mark').setup({ ui = { float_list = true } })
+			to use the legacy floating list window instead.
 			The group that will be used for the next |:Mark| or
 			|<Leader>m| command (without {N}) is shown with a ">".
 			The last mark used for a search (via <Leader>*) is

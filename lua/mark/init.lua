@@ -1292,21 +1292,6 @@ local function collect_list_entries()
   return entries, has_names, used_count
 end
 
-local function list_lines()
-  local entries, has_names = collect_list_entries()
-  local lines = {}
-  lines[#lines + 1] = has_names and "group:name\tpattern" or "group     pattern"
-  lines[#lines + 1] = "   (N) # of alternatives   > next mark group    / current search mark"
-  for _, entry in ipairs(entries) do
-    lines[#lines + 1] = entry.text
-  end
-  local st = state()
-  if not st.enabled then
-    lines[#lines + 1] = "Marks are currently disabled."
-  end
-  return lines
-end
-
 local function show_mark_list_window()
   local entries, _, used_count = collect_list_entries()
   if #entries == 0 then
@@ -1387,15 +1372,40 @@ local function show_mark_list_window()
   })
 end
 
+local function show_mark_list_picker()
+  local entries, _, used_count = collect_list_entries()
+  if #entries == 0 then
+    vim.notify("No mark groups configured.", vim.log.levels.INFO, { title = "Mark List" })
+    return
+  end
+  if used_count == 0 then
+    vim.notify("No marks defined.", vim.log.levels.INFO, { title = "Mark List" })
+  end
+
+  vim.ui.select(entries, {
+    prompt = "Marks",
+    kind = "mark.list",
+    format_item = function(entry)
+      return entry.text
+    end,
+  }, function(entry)
+    if not entry then
+      return
+    end
+    if not entry.used then
+      vim.notify(("Group %d has no pattern."):format(entry.group), vim.log.levels.WARN, { title = "Mark List" })
+      return
+    end
+    M.search_group_mark(entry.group, 1, false, true, true)
+  end)
+end
+
 function M.list()
   if config().ui.float_list then
     show_mark_list_window()
     return
   end
-  local lines = list_lines()
-  for _, line in ipairs(lines) do
-    echo_message({ { line, "Normal" } }, false, {})
-  end
+  show_mark_list_picker()
 end
 
 function M.get_group_num()
