@@ -1,10 +1,13 @@
-# mark.nvim (vim-mark Lua migration)
+# vim-mark.nvim (Lua-first Neovim fork)
 
-`vim-mark` has been migrated to a **Lua-first Neovim plugin**.
+`vim-mark.nvim` is a **Lua-first Neovim fork** and continuation of `vim-mark`.
 
-It keeps the classic multi-word highlighting workflow, while adding a cleaner Lua API, Neovim user-commands, and LazyVim-friendly defaults.
+It preserves the classic multi-word highlighting workflow while adding a cleaner Lua API, Neovim user-commands, and LazyVim-friendly defaults.
+
+[![asciicast](https://asciinema.org/a/783151.svg)](https://asciinema.org/a/783151)
 
 - Original maintainer line: Ingo Karkat (based on Yuheng Xie’s original work)
+- Current maintained repository: `ZiYang-oyxy/vim-mark.nvim`
 - Current runtime: `plugin/mark.lua` + `lua/mark/*`
 - Legacy Vimscript runtime (`plugin/mark.vim`, `autoload/mark*.vim`) has been removed
 
@@ -18,10 +21,20 @@ It keeps the classic multi-word highlighting workflow, while adding a cleaner Lu
 
 ```lua
 {
-  "inkarkat/vim-mark",
+  "ZiYang-oyxy/vim-mark.nvim",
   opts = {
     keymaps = { preset = "lazyvim" }, -- "lazyvim" | "legacy" | "none"
   },
+}
+```
+
+For local development, use a `dir` source:
+
+```lua
+{
+  dir = "/path/to/vim-mark.nvim",
+  name = "vim-mark.nvim",
+  main = "mark",
 }
 ```
 
@@ -36,6 +49,104 @@ require("mark").setup({
   palette = "original",
 })
 ```
+
+## Upstream defaults vs personal workflow
+
+`vim-mark.nvim` should keep broadly compatible defaults in-plugin, and let heavily opinionated key behavior live in user config.
+
+- Good candidates for plugin defaults: portable options (`auto_save`, `auto_load`, palette behavior, list UI mode) and conservative key presets (`lazyvim`, `legacy`, `none`)
+- Better kept in personal config: remapping high-frequency native keys (`n` / `N`), punctuation keys (`!`, `@`), and custom `<leader>` semantics
+- Recommended approach: use `keymaps = { preset = "none" }` and define your own `keys` in LazyVim
+
+### LazyVim custom keymap profile (example)
+
+Below is a full custom profile matching a mark-first workflow:
+
+```lua
+{
+  "ZiYang-oyxy/vim-mark.nvim",
+  main = "mark",
+  lazy = false,
+  opts = {
+    search_global_progress = true,
+    keymaps = { preset = "none" },
+    auto_save = true,
+    auto_load = false,
+    ui = {
+      enhanced_picker = false,
+      float_list = true,
+    },
+  },
+  keys = {
+    {
+      "!",
+      function()
+        require("mark").mark_word_or_selection({ group = vim.v.count })
+      end,
+      mode = { "n", "x" },
+      desc = "Mark: Toggle word or selection",
+      silent = true,
+    },
+    {
+      "<leader><cr>",
+      function()
+        require("mark").clear_all()
+      end,
+      mode = "n",
+      desc = "Mark: Clear all",
+      silent = true,
+    },
+    {
+      "n",
+      function()
+        require("mark").search_any_mark(false, vim.v.count1)
+      end,
+      mode = "n",
+      desc = "Mark: Next any match",
+      silent = true,
+    },
+    {
+      "N",
+      function()
+        require("mark").search_any_mark(true, vim.v.count1)
+      end,
+      mode = "n",
+      desc = "Mark: Prev any match",
+      silent = true,
+    },
+    {
+      "#",
+      function()
+        require("mark").search_current_mark(false, vim.v.count1)
+      end,
+      mode = "n",
+      desc = "Mark: Next current match",
+      silent = true,
+    },
+    {
+      "@",
+      function()
+        require("mark").search_current_mark(true, vim.v.count1)
+      end,
+      mode = "n",
+      desc = "Mark: Prev current match",
+      silent = true,
+    },
+    {
+      "<leader>`",
+      function()
+        require("mark").list()
+      end,
+      mode = "n",
+      desc = "Mark: List all",
+      silent = true,
+      nowait = true,
+    },
+  },
+}
+```
+
+Note: this profile intentionally overrides native `n` / `N` search navigation. If you prefer Vim-native search semantics, keep `keymaps.preset = "lazyvim"` instead.
 
 ## Features
 
@@ -144,7 +255,7 @@ Search message progress:
   ```
   Group   138,333 / 138,835
   ███████████████████████████▉ 99.64%
-  Global  3,920 / 4,998
+  Global  392,000 / 499,800
   █████████████████████▊       78.44%
   ```
 
