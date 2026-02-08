@@ -23,6 +23,7 @@ It preserves the classic multi-word highlighting workflow while adding a cleaner
 {
   "ZiYang-oyxy/vim-mark.nvim",
   opts = {
+    mark_only = true,
     keymaps = { preset = "lazyvim" }, -- "lazyvim" | "legacy" | "none"
   },
 }
@@ -47,6 +48,7 @@ require("mark").setup({
   auto_load = false,
   auto_save = true,
   palette = "original",
+  mark_only = true,
 })
 ```
 
@@ -69,6 +71,7 @@ Below is a full custom profile matching a mark-first workflow:
   lazy = false,
   opts = {
     search_global_progress = true,
+    mark_only = true,
     keymaps = { preset = "none" },
     auto_save = true,
     auto_load = false,
@@ -117,10 +120,30 @@ Below is a full custom profile matching a mark-first workflow:
     {
       "#",
       function()
-        require("mark").search_current_mark(false, vim.v.count1)
+        local mark = require("mark")
+        if mark.search_next(true, nil, vim.v.count1) then
+          return ""
+        end
+        if mark.get_count() > 0 then
+          mark.search_any_mark(true, vim.v.count1)
+          return ""
+        end
+        vim.schedule(function()
+          local pattern = vim.fn.getreg("/")
+          if type(pattern) ~= "string" or pattern == "" then
+            return
+          end
+          if not pcall(vim.regex, pattern) then
+            return
+          end
+          mark.mark_regex({ pattern = pattern })
+          vim.cmd("silent! nohlsearch")
+        end)
+        return "#"
       end,
       mode = "n",
-      desc = "Mark: Next current match",
+      expr = true,
+      desc = "Mark: Prev (native fallback + record)",
       silent = true,
     },
     {
@@ -151,7 +174,7 @@ Note: this profile intentionally overrides native `n` / `N` search navigation. I
 ## Features
 
 - Multi-group word/regex highlighting across windows
-- Mark-aware `*` / `#` search with native fallback
+- Mark-aware `*` / `#` search, with optional mark-only takeover
 - Search preview while typing `/` (records final search as a mark)
 - Group jump and cascade search helpers
 - Save/load mark slots (`:MarkSave`, `:MarkLoad`)
@@ -204,9 +227,13 @@ Default preset is `lazyvim`.
 - `<leader>ml` list marks (picker by default)
 - `<leader>m*`, `<leader>m#` search current mark
 - `<leader>m/`, `<leader>m?` search any mark
-- `*`, `#` mark-aware search with fallback to native behavior
+- `*`, `#` mark-aware search (see `mark_only` below for takeover mode)
 
 Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mappings yourself.
+
+Set `mark_only = true` to keep `*` / `#` in mark flow:
+- with marks defined: keep searching marks (no native fallback)
+- with no marks: run one native `*` / `#` search, then record `@/` as a mark (like `/` takeover)
 
 `/` takeover is handled via cmdline events, so search preview / recording still works even if your `/` keymap is customized.
 After pressing `<CR>`, native `hlsearch` highlighting is cleared automatically so mark highlights take over cleanly.
@@ -232,6 +259,7 @@ require("mark").setup({
   match_priority = -10,
   ignorecase = nil,
   search_global_progress = false,
+  mark_only = false,
   keymaps = { preset = "lazyvim" },
   ui = {
     enhanced_picker = false,

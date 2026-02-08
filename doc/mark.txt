@@ -227,6 +227,14 @@ SEARCHING						      *mark-searching*
             (<Leader>/ is the most recently
             used), do a <Leader>/.
 
+			With Lua setup option >
+			    require('mark').setup({ mark_only = true })
+<
+			[count]* and [count]# stay in mark flow:
+			- if marks exist, search marks (no native fallback)
+			- if no marks exist, run one native * / # search
+			  and record @/ as a mark (same idea as "/" takeover)
+
 			Note: When the cursor is on a mark, the backwards
 			search does not jump to the beginning of the current
 			mark (like the built-in search), but to the previous
@@ -526,6 +534,14 @@ This is disabled by default to avoid extra computation on large buffers.
 Equivalent Lua setup option: >
 	require('mark').setup({ search_global_progress = true })
 <
+
+							      *mark_only*
+Lua-only option for * / # takeover behavior: >
+	require('mark').setup({ mark_only = true })
+<
+When enabled, * / # do not fallback to native behavior while marks exist.
+If no marks exist yet, one native * / # search is executed and @/ is recorded
+as a mark.
 
 						     *g:mwExclusionPredicates*
 To exclude some tab pages, windows, or buffers / filetypes from showing mark

@@ -14,6 +14,7 @@ This project has moved to a **Lua-only Neovim implementation**.
 
 ```lua
 require("mark").setup({
+  mark_only = true,
   keymaps = { preset = "lazyvim" }, -- "lazyvim" | "legacy" | "none"
   auto_load = false,
   auto_save = true,
@@ -46,6 +47,9 @@ Default is `preset = "lazyvim"`:
 - `<leader>m*`, `<leader>m#`: search current mark
 - `<leader>m/`, `<leader>m?`: search any mark
 - `*`, `#`: mark-aware search with native fallback
+
+Optional: set `mark_only = true` to keep `*` / `#` in mark flow. If no marks
+exist, one native `*` / `#` search is performed and `@/` is recorded as a mark.
 
 Switch to `preset = "legacy"` for classic defaults, or `preset = "none"` to manage mappings yourself.
 

@@ -1654,6 +1654,47 @@ local function register_keymap(mode, lhs, rhs, opts)
   M._applied_keymaps[#M._applied_keymaps + 1] = { mode = mode, lhs = lhs }
 end
 
+local function has_any_mark()
+  return state_mod.used_count(state()) > 0
+end
+
+local function schedule_native_search_mark_record()
+  vim.schedule(function()
+    if not M._setup_done then
+      return
+    end
+    local final_pattern = vim.fn.getreg("/")
+    if type(final_pattern) ~= "string" or final_pattern == "" or not is_valid_regex(final_pattern) then
+      return
+    end
+
+    do_mark_and_set_current(0, normalize_magic(final_pattern), nil, {
+      pattern_supplied = true,
+      interactive = false,
+    })
+    clear_native_search_highlight()
+  end)
+end
+
+local function search_with_star_hash_mapping(is_backward, count)
+  local effective_count = count or vim.v.count1
+  if M.search_next(is_backward, nil, effective_count) then
+    return true
+  end
+
+  if not config().mark_only then
+    return false
+  end
+
+  if has_any_mark() then
+    M.search_any_mark(is_backward, effective_count)
+    return true
+  end
+
+  schedule_native_search_mark_record()
+  return false
+end
+
 local function apply_keymaps()
   clear_registered_keymaps()
   local preset = config().keymaps.preset
@@ -1733,13 +1774,13 @@ local function apply_keymaps()
   end
 
   register_keymap("n", "*", function()
-    if not M.search_next(false, nil, vim.v.count1) then
+    if not search_with_star_hash_mapping(false, vim.v.count1) then
       return "*"
     end
     return ""
   end, { expr = true, silent = true, noremap = true })
   register_keymap("n", "#", function()
-    if not M.search_next(true, nil, vim.v.count1) then
+    if not search_with_star_hash_mapping(true, vim.v.count1) then
       return "#"
     end
     return ""

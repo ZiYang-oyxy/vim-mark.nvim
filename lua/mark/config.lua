@@ -29,6 +29,7 @@ M.defaults = {
   match_priority = -10,
   ignorecase = nil,
   search_global_progress = false,
+  mark_only = false,
   keymaps = {
     preset = "lazyvim",
   },
@@ -94,6 +95,7 @@ function M.normalize(opts)
   config.direct_group_jump_mapping_num = math.max(0, tonumber(config.direct_group_jump_mapping_num) or 0)
   config.match_priority = tonumber(config.match_priority) or -10
   config.search_global_progress = to_bool(config.search_global_progress, false)
+  config.mark_only = to_bool(config.mark_only, false)
   config.keymaps = config.keymaps or {}
   config.keymaps.preset = config.keymaps.preset or "lazyvim"
   config.ui = vim.tbl_deep_extend("force", copy(M.defaults.ui), config.ui or {})
