@@ -231,9 +231,10 @@ SEARCHING						      *mark-searching*
 			    require('mark').setup({ mark_only = true })
 <
 			[count]* and [count]# stay in mark flow:
-			- if marks exist, search marks (no native fallback)
-			- if no marks exist, run one native * / # search
-			  and record @/ as a mark (same idea as "/" takeover)
+			- resolve pattern like mark_word_or_selection
+			  (current mark / word source)
+			- ensure pattern is marked (without toggle removal)
+			- jump directionally: * forward, # backward
 
 			Note: When the cursor is on a mark, the backwards
 			search does not jump to the beginning of the current
@@ -539,9 +540,9 @@ Equivalent Lua setup option: >
 Lua-only option for * / # takeover behavior: >
 	require('mark').setup({ mark_only = true })
 <
-When enabled, * / # do not fallback to native behavior while marks exist.
-If no marks exist yet, one native * / # search is executed and @/ is recorded
-as a mark.
+When enabled, * / # resolve pattern from current mark / word (same source
+logic as mark_word_or_selection), ensure that pattern is marked, then jump
+in direction (* forward, # backward) with normal [count] semantics.
 
 						     *g:mwExclusionPredicates*
 To exclude some tab pages, windows, or buffers / filetypes from showing mark

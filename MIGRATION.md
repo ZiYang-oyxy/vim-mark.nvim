@@ -48,8 +48,9 @@ Default is `preset = "lazyvim"`:
 - `<leader>m/`, `<leader>m?`: search any mark
 - `*`, `#`: mark-aware search with native fallback
 
-Optional: set `mark_only = true` to keep `*` / `#` in mark flow. If no marks
-exist, one native `*` / `#` search is performed and `@/` is recorded as a mark.
+Optional: set `mark_only = true` so `*` / `#` use mark-word style pattern
+resolution (current mark / word), keep the pattern marked, then jump
+directionally (`*` forward, `#` backward) with normal `[count]` behavior.
 
 Switch to `preset = "legacy"` for classic defaults, or `preset = "none"` to manage mappings yourself.
 

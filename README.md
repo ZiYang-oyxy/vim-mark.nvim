@@ -58,13 +58,14 @@ require("mark").setup({
 
 - Good candidates for plugin defaults: portable options (`auto_save`, `auto_load`, palette behavior, list UI mode) and conservative key presets (`lazyvim`, `legacy`, `none`)
 - Better kept in personal config: remapping high-frequency native keys (`n` / `N`), punctuation keys (`!`, `@`), and custom `<leader>` semantics
-- Recommended approach: use `keymaps = { preset = "none" }` and define your own `keys` in LazyVim
+- Recommended approach: keep plugin spec focused on `opts`, and put your custom mappings in `lua/config/keymaps.lua`
 
-### LazyVim custom keymap profile (example)
+### LazyVim custom keymap profile (plugin opts + keymaps.lua)
 
-Below is a full custom profile matching a mark-first workflow:
+Below is a mark-first workflow profile where plugin config stays minimal and all keymaps are managed in `lua/config/keymaps.lua`.
 
 ```lua
+-- lua/plugins/mark.lua
 {
   "ZiYang-oyxy/vim-mark.nvim",
   main = "mark",
@@ -80,96 +81,45 @@ Below is a full custom profile matching a mark-first workflow:
       float_list = true,
     },
   },
-  keys = {
-    {
-      "!",
-      function()
-        require("mark").mark_word_or_selection({ group = vim.v.count })
-      end,
-      mode = { "n", "x" },
-      desc = "Mark: Toggle word or selection",
-      silent = true,
-    },
-    {
-      "<leader><cr>",
-      function()
-        require("mark").clear_all()
-      end,
-      mode = "n",
-      desc = "Mark: Clear all",
-      silent = true,
-    },
-    {
-      "n",
-      function()
-        require("mark").search_any_mark(false, vim.v.count1)
-      end,
-      mode = "n",
-      desc = "Mark: Next any match",
-      silent = true,
-    },
-    {
-      "N",
-      function()
-        require("mark").search_any_mark(true, vim.v.count1)
-      end,
-      mode = "n",
-      desc = "Mark: Prev any match",
-      silent = true,
-    },
-    {
-      "#",
-      function()
-        local mark = require("mark")
-        if mark.search_next(true, nil, vim.v.count1) then
-          return ""
-        end
-        if mark.get_count() > 0 then
-          mark.search_any_mark(true, vim.v.count1)
-          return ""
-        end
-        vim.defer_fn(function()
-          local pattern = vim.fn.getreg("/")
-          if type(pattern) ~= "string" or pattern == "" then
-            return
-          end
-          if not pcall(vim.regex, pattern) then
-            return
-          end
-          mark.mark_regex({ pattern = pattern })
-          vim.cmd("silent! nohlsearch")
-        end, 0)
-        return "#"
-      end,
-      mode = "n",
-      expr = true,
-      desc = "Mark: Prev (native fallback + record)",
-      silent = true,
-    },
-    {
-      "@",
-      function()
-        require("mark").search_current_mark(true, vim.v.count1)
-      end,
-      mode = "n",
-      desc = "Mark: Prev current match",
-      silent = true,
-    },
-    {
-      "<leader>`",
-      function()
-        require("mark").list()
-      end,
-      mode = "n",
-      desc = "Mark: List all",
-      silent = true,
-      nowait = true,
-    },
-  },
 }
 ```
 
-Note: this profile intentionally overrides native `n` / `N` search navigation. If you prefer Vim-native search semantics, keep `keymaps.preset = "lazyvim"` instead.
+```lua
+-- lua/config/keymaps.lua
+local keymap = vim.keymap.set
+local function mark_module()
+  return require("mark")
+end
+
+keymap({ "n", "x" }, "!", function()
+  mark_module().mark_word_or_selection({ group = vim.v.count })
+end, { desc = "Mark: Toggle word or selection", silent = true })
+keymap("n", "<leader><cr>", function()
+  mark_module().clear_all()
+end, { desc = "Mark: Clear all", silent = true })
+keymap("n", "n", function()
+  mark_module().search_any_mark(false, vim.v.count1)
+end, { desc = "Mark: Next any match", silent = true })
+keymap("n", "N", function()
+  mark_module().search_any_mark(true, vim.v.count1)
+end, { desc = "Mark: Prev any match", silent = true })
+keymap("n", "*", function()
+  mark_module().search_word_or_selection_mark(false, vim.v.count1)
+end, { desc = "Mark: Next word/selection mark", silent = true })
+keymap("n", "#", function()
+  mark_module().search_word_or_selection_mark(true, vim.v.count1)
+end, { desc = "Mark: Prev word/selection mark", silent = true })
+keymap("n", "@", function()
+  mark_module().search_current_mark(true, vim.v.count1)
+end, { desc = "Mark: Prev current match", silent = true })
+keymap("n", "<leader>`", function()
+  mark_module().list()
+end, { desc = "Mark: List all", silent = true, nowait = true })
+```
+
+Note: this profile intentionally overrides native `n` / `N` search navigation. If you prefer Vim-native search semantics, keep those keys unmapped in your `keymaps.lua`.
+
+This profile is meant for fully custom mappings, so it explicitly uses `keymaps = { preset = "none" }`.
 
 ## Features
 
@@ -232,8 +182,9 @@ Default preset is `lazyvim`.
 Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mappings yourself.
 
 Set `mark_only = true` to keep `*` / `#` in mark flow:
-- with marks defined: keep searching marks (no native fallback)
-- with no marks: run one native `*` / `#` search, then record `@/` as a mark (like `/` takeover)
+- resolve pattern from current mark / word (same source logic as `mark_word_or_selection`)
+- ensure the pattern is marked without toggle side effects
+- run directional jump (`*` forward, `#` backward) with `[count]` semantics
 
 `/` takeover is handled via cmdline events, so search preview / recording still works even if your `/` keymap is customized.
 After pressing `<CR>`, native `hlsearch` highlighting is cleared automatically so mark highlights take over cleanly.

@@ -1020,10 +1020,7 @@ function M.current_mark()
   return "", {}, -1
 end
 
-function M.mark_word(options)
-  local opts = options or {}
-  local group_num = opts.group or 0
-  local mark_whole_word_only = opts.partial and false or true
+local function pattern_from_mark_word(group_num, mark_whole_word_only)
   local regexp = (group_num == 0) and M.current_mark() or ""
   if type(regexp) == "table" then
     regexp = regexp[1]
@@ -1037,6 +1034,71 @@ function M.mark_word(options)
       end
     end
   end
+  return regexp
+end
+
+local function pattern_from_mark_word_or_selection()
+  if is_visual_mode() then
+    local should_leave_visual = true
+    local pattern, err = get_visual_selection_as_literal_pattern()
+    if err == "block_not_supported" then
+      visual_mode_not_supported_warning()
+      if should_leave_visual then
+        leave_visual_mode()
+      end
+      return ""
+    end
+    if should_leave_visual then
+      leave_visual_mode()
+    end
+    return pattern or ""
+  end
+  return pattern_from_mark_word(0, true)
+end
+
+local function ensure_group_for_pattern_without_toggle(pattern)
+  if type(pattern) ~= "string" or pattern == "" then
+    return 0
+  end
+  local normalized = normalize_magic(pattern)
+  if normalized == "" then
+    return 0
+  end
+  local existing_group = M.get_mark_number(normalized, false, true)
+  if existing_group > 0 then
+    state().last_search = existing_group
+    return existing_group
+  end
+  local ok, mark_group = do_mark_and_set_current(0, normalized, nil, {
+    pattern_supplied = true,
+    interactive = false,
+  })
+  if not ok then
+    return 0
+  end
+  return mark_group
+end
+
+local function search_word_or_selection_mark(is_backward, count)
+  local effective_count = count or vim.v.count1
+  local pattern = pattern_from_mark_word_or_selection()
+  if pattern == "" then
+    no_mark_error_message()
+    return false
+  end
+  local group = ensure_group_for_pattern_without_toggle(pattern)
+  if group <= 0 then
+    no_mark_error_message()
+    return false
+  end
+  return M.search_group_mark(group, effective_count, is_backward, true, false)
+end
+
+function M.mark_word(options)
+  local opts = options or {}
+  local group_num = opts.group or 0
+  local mark_whole_word_only = opts.partial and false or true
+  local regexp = pattern_from_mark_word(group_num, mark_whole_word_only)
   if regexp == "" then
     return false, 0
   end
@@ -1266,6 +1328,10 @@ function M.search_next(is_backward, search_kind, count)
     end
   end
   return true
+end
+
+function M.search_word_or_selection_mark(is_backward, count)
+  return search_word_or_selection_mark(is_backward, count)
 end
 
 function M.to_list()
@@ -1654,45 +1720,9 @@ local function register_keymap(mode, lhs, rhs, opts)
   M._applied_keymaps[#M._applied_keymaps + 1] = { mode = mode, lhs = lhs }
 end
 
-local function has_any_mark()
-  return state_mod.used_count(state()) > 0
-end
-
-local function schedule_native_search_mark_record()
-  vim.defer_fn(function()
-    if not M._setup_done then
-      return
-    end
-    local final_pattern = vim.fn.getreg("/")
-    if type(final_pattern) ~= "string" or final_pattern == "" or not is_valid_regex(final_pattern) then
-      return
-    end
-
-    do_mark_and_set_current(0, normalize_magic(final_pattern), nil, {
-      pattern_supplied = true,
-      interactive = false,
-    })
-    clear_native_search_highlight()
-  end, 0)
-end
-
 local function search_with_star_hash_mapping(is_backward, count)
   local effective_count = count or vim.v.count1
-  if M.search_next(is_backward, nil, effective_count) then
-    return true
-  end
-
-  if not config().mark_only then
-    return false
-  end
-
-  if has_any_mark() then
-    M.search_any_mark(is_backward, effective_count)
-    return true
-  end
-
-  schedule_native_search_mark_record()
-  return false
+  return M.search_next(is_backward, nil, effective_count)
 end
 
 local function apply_keymaps()
@@ -1774,12 +1804,20 @@ local function apply_keymaps()
   end
 
   register_keymap("n", "*", function()
+    if config().mark_only then
+      search_word_or_selection_mark(false, vim.v.count1)
+      return ""
+    end
     if not search_with_star_hash_mapping(false, vim.v.count1) then
       return "*"
     end
     return ""
   end, { expr = true, silent = true, noremap = true })
   register_keymap("n", "#", function()
+    if config().mark_only then
+      search_word_or_selection_mark(true, vim.v.count1)
+      return ""
+    end
     if not search_with_star_hash_mapping(true, vim.v.count1) then
       return "#"
     end
