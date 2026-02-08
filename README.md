@@ -1,13 +1,9 @@
 # vim-mark.nvim (Lua-first Neovim fork)
 
-`vim-mark.nvim` is a **Lua-first Neovim fork** and continuation of `vim-mark`.
-
-It preserves the classic multi-word highlighting workflow while adding a cleaner Lua API, Neovim user-commands, and LazyVim-friendly defaults.
+`vim-mark.nvim` is a Neovim plugin for multi-word / regex mark highlighting and mark-aware navigation, designed as a Lua-first continuation of the original Vim plugin ([inkarkat/vim-mark](https://github.com/inkarkat/vim-mark)).
 
 [![asciicast](https://asciinema.org/a/783151.svg)](https://asciinema.org/a/783151)
 
-- Original maintainer line: Ingo Karkat (based on Yuheng Xie’s original work)
-- Current maintained repository: `ZiYang-oyxy/vim-mark.nvim`
 - Current runtime: `plugin/mark.lua` + `lua/mark/*`
 - Legacy Vimscript runtime (`plugin/mark.vim`, `autoload/mark*.vim`) has been removed
 
@@ -182,6 +178,7 @@ Default preset is `lazyvim`.
 Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mappings yourself.
 
 Set `mark_only = true` to keep `*` / `#` in mark flow:
+
 - resolve pattern from current mark / word (same source logic as `mark_word_or_selection`)
 - ensure the pattern is marked without toggle side effects
 - run directional jump (`*` forward, `#` backward) with `[count]` semantics
