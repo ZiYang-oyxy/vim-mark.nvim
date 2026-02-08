@@ -128,7 +128,7 @@ Below is a full custom profile matching a mark-first workflow:
           mark.search_any_mark(true, vim.v.count1)
           return ""
         end
-        vim.schedule(function()
+        vim.defer_fn(function()
           local pattern = vim.fn.getreg("/")
           if type(pattern) ~= "string" or pattern == "" then
             return
@@ -138,7 +138,7 @@ Below is a full custom profile matching a mark-first workflow:
           end
           mark.mark_regex({ pattern = pattern })
           vim.cmd("silent! nohlsearch")
-        end)
+        end, 0)
         return "#"
       end,
       mode = "n",

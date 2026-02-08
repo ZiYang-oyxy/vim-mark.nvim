@@ -1659,7 +1659,7 @@ local function has_any_mark()
 end
 
 local function schedule_native_search_mark_record()
-  vim.schedule(function()
+  vim.defer_fn(function()
     if not M._setup_done then
       return
     end
@@ -1673,7 +1673,7 @@ local function schedule_native_search_mark_record()
       interactive = false,
     })
     clear_native_search_highlight()
-  end)
+  end, 0)
 end
 
 local function search_with_star_hash_mapping(is_backward, count)
