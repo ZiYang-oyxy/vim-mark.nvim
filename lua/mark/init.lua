@@ -14,6 +14,9 @@ M._applied_keymaps = {}
 M._is_internal_load = false
 M._updating_windows = false
 M._search_progress_cache = {}
+M._last_search_progress_data = nil
+M._last_progressline_text = ""
+M._last_progressline_bufnr = nil
 M._search_cmd = {
   active = false,
   source_winid = nil,
@@ -38,6 +41,15 @@ end
 
 local function config()
   return M._config
+end
+
+local function reset_last_search_progress(bufnr)
+  if bufnr ~= nil and M._last_progressline_bufnr ~= bufnr then
+    return
+  end
+  M._last_search_progress_data = nil
+  M._last_progressline_text = ""
+  M._last_progressline_bufnr = nil
 end
 
 local function trim_message(message)
@@ -69,6 +81,13 @@ end
 
 local function define_search_progress_highlight()
   vim.cmd("highlight default MarkSearchProgress gui=bold cterm=bold")
+end
+
+local function is_lazyvim_environment()
+  if type(rawget(_G, "LazyVim")) == "table" then
+    return true
+  end
+  return package.loaded["lazyvim.config"] ~= nil or package.loaded["lazyvim.util"] ~= nil
 end
 
 local function escape_text(text)
@@ -445,6 +464,7 @@ end
 local function set_pattern(index, pattern)
   local st = state()
   st.patterns[index] = pattern
+  reset_last_search_progress()
   if config().auto_save then
     save_marks()
   end
@@ -539,6 +559,19 @@ local function parse_mark_argument(argument)
 end
 
 local search_messages_enabled = true
+
+local function search_progress_display_mode()
+  local cfg = config() or {}
+  local ui = cfg.ui or {}
+  if ui.search_progress_display == "statusline" then
+    return "statusline"
+  end
+  return "message"
+end
+
+local function should_echo_search_progress()
+  return search_progress_display_mode() == "message"
+end
 
 local function no_mark_error_message()
   if not search_messages_enabled then
@@ -679,6 +712,13 @@ local function normalize_progress_value(value)
   return numeric
 end
 
+local function normalize_progress_ratio(current, total)
+  local current_value = normalize_progress_value(current)
+  local total_value = normalize_progress_value(total)
+  local ratio = total_value > 0 and (current_value / total_value) or 0
+  return current_value, total_value, math.max(0, math.min(1, ratio))
+end
+
 local function format_count_with_commas(value)
   local formatted = tostring(normalize_progress_value(value))
   while true do
@@ -691,9 +731,10 @@ local function format_count_with_commas(value)
   return formatted
 end
 
-local function render_progress_bar(ratio, width)
+local function render_progress_bar(ratio, width, empty_char)
   local clamped_ratio = math.max(0, math.min(1, tonumber(ratio) or 0))
   local normalized_width = math.max(1, math.floor(tonumber(width) or 40))
+  local fill_char = (type(empty_char) == "string" and empty_char ~= "") and empty_char or " "
   local total_units = clamped_ratio * normalized_width
   local full_blocks = math.floor(total_units)
   local partial_steps = math.floor((total_units - full_blocks) * 8 + 0.5)
@@ -712,16 +753,13 @@ local function render_progress_bar(ratio, width)
     used = used + 1
   end
   if used < normalized_width then
-    bar = bar .. string.rep(" ", normalized_width - used)
+    bar = bar .. string.rep(fill_char, normalized_width - used)
   end
   return bar
 end
 
 local function format_progress_bar_line(current, total)
-  local current_value = normalize_progress_value(current)
-  local total_value = normalize_progress_value(total)
-  local ratio = total_value > 0 and (current_value / total_value) or 0
-  local clamped_ratio = math.max(0, math.min(1, ratio))
+  local _, _, clamped_ratio = normalize_progress_ratio(current, total)
   local bar = render_progress_bar(clamped_ratio, 28)
   return ("%s %.2f%%"):format(bar, clamped_ratio * 100)
 end
@@ -740,6 +778,59 @@ local function format_progress_block(current, total, label)
     format_progress_count_line(current, total, label),
     format_progress_bar_line(current, total),
   }, "\n")
+end
+
+local progressline_defaults = {
+  show_counts = false,
+  bar_width = 8,
+  separator = "  ",
+}
+
+local function normalize_progressline_options(opts)
+  local raw = type(opts) == "table" and opts or {}
+  local bar_width = tonumber(raw.bar_width)
+  if not bar_width then
+    bar_width = progressline_defaults.bar_width
+  end
+  bar_width = math.max(4, math.min(20, math.floor(bar_width)))
+  local separator = raw.separator
+  if type(separator) ~= "string" then
+    separator = progressline_defaults.separator
+  end
+  return {
+    show_counts = raw.show_counts and true or false,
+    bar_width = bar_width,
+    separator = separator,
+  }
+end
+
+local function format_progressline_segment(label, snapshot, opts)
+  local safe_snapshot = type(snapshot) == "table" and snapshot or {}
+  local current, total, ratio = normalize_progress_ratio(safe_snapshot.current, safe_snapshot.total)
+  local bar = render_progress_bar(ratio, opts.bar_width, "░")
+  if opts.show_counts then
+    return ("%s %s/%s %.2f%% %s"):format(
+      label,
+      format_count_with_commas(current),
+      format_count_with_commas(total),
+      ratio * 100,
+      bar
+    )
+  end
+  return ("%s %.2f%% %s"):format(label, ratio * 100, bar)
+end
+
+local function format_progressline(progress, opts)
+  local cfg = config() or {}
+  local options = normalize_progressline_options(opts)
+  local safe_progress = type(progress) == "table" and progress or {}
+  local segments = {
+    format_progressline_segment("G", safe_progress.group, options),
+  }
+  if cfg.search_global_progress then
+    segments[#segments + 1] = format_progressline_segment("A", safe_progress.global, options)
+  end
+  return table.concat(segments, options.separator)
 end
 
 local function fallback_search_progress_data()
@@ -767,16 +858,23 @@ local function format_search_progress_message(progress)
   }, "\n")
 end
 
-local function safe_search_progress_message()
+local function safe_search_progress_payload()
   local ok, progress = pcall(search_progress_data)
-  if not ok then
-    return format_search_progress_message(fallback_search_progress_data())
+  if not ok or type(progress) ~= "table" then
+    progress = fallback_search_progress_data()
   end
-  return format_search_progress_message(progress)
+  return format_search_progress_message(progress), progress
+end
+
+local function remember_search_progress(progress)
+  local safe_progress = type(progress) == "table" and progress or fallback_search_progress_data()
+  M._last_search_progress_data = vim.deepcopy(safe_progress)
+  M._last_progressline_text = format_progressline(safe_progress, progressline_defaults)
+  M._last_progressline_bufnr = vim.api.nvim_get_current_buf()
 end
 
 local function echo_search_progress(progress_message)
-  if not search_messages_enabled then
+  if not search_messages_enabled or not should_echo_search_progress() then
     return
   end
   local message = (type(progress_message) == "string" and progress_message ~= "" and progress_message)
@@ -838,7 +936,9 @@ local function search(pattern, count, is_backward, current_mark_position, search
   if line > 0 and not is_stuck_at_current_mark then
     vim.cmd([[normal! zv]])
     mark_enable(true, false)
-    echo_search_progress(safe_search_progress_message())
+    local progress_message, progress = safe_search_progress_payload()
+    remember_search_progress(progress)
+    echo_search_progress(progress_message)
     return true
   end
 
@@ -848,7 +948,9 @@ local function search(pattern, count, is_backward, current_mark_position, search
   end
   mark_enable(true, false)
   if line > 0 and is_stuck_at_current_mark and is_wrapped then
-    echo_search_progress(safe_search_progress_message())
+    local progress_message, progress = safe_search_progress_payload()
+    remember_search_progress(progress)
+    echo_search_progress(progress_message)
     return true
   end
   error_message(search_type, pattern, is_backward)
@@ -1346,6 +1448,7 @@ function M.load(slot, silent)
     end
     return false
   end
+  reset_last_search_progress()
   refresh_scope()
   if not silent then
     if loaded_count == 0 then
@@ -1644,6 +1747,128 @@ function M.get_pattern(index)
     return ""
   end
   return state().patterns[state().last_search]
+end
+
+function M.progressline(opts)
+  if M._last_progressline_bufnr ~= vim.api.nvim_get_current_buf() then
+    return ""
+  end
+  local progress = M._last_search_progress_data
+  if type(progress) ~= "table" then
+    return ""
+  end
+  if opts == nil then
+    return M._last_progressline_text or ""
+  end
+  return format_progressline(progress, opts)
+end
+
+local function mark_progressline_component()
+  if M._last_progressline_bufnr ~= vim.api.nvim_get_current_buf() then
+    return ""
+  end
+  local progress = M._last_search_progress_data
+  if type(progress) ~= "table" then
+    return ""
+  end
+
+  local function segment(label, snapshot)
+    local safe = type(snapshot) == "table" and snapshot or { current = 0, total = 0 }
+    local current, total, ratio = normalize_progress_ratio(safe.current, safe.total)
+    local bar = render_progress_bar(ratio, 8, "░")
+    return ("%s %s %s/%s"):format(
+      label,
+      bar,
+      format_count_with_commas(current),
+      format_count_with_commas(total)
+    )
+  end
+
+  local group = type(progress.group) == "table" and progress.group or { current = 0, total = 0 }
+  local text = segment("G", group)
+
+  local cfg = config() or {}
+  if cfg.search_global_progress then
+    local global = type(progress.global) == "table" and progress.global or { current = 0, total = 0 }
+    text = ("%s A %s"):format(text, segment("", global):gsub("^%s+", ""))
+  end
+
+  if text == "" then
+    return ""
+  end
+  local escaped = text:gsub("%%", "%%%%")
+  return escaped
+end
+
+local function has_mark_progressline_component(components)
+  for _, component in ipairs(components) do
+    if type(component) == "table" and component._mark_lazyvim_progressline then
+      return true
+    end
+  end
+  return false
+end
+
+local function remove_mark_progressline_component(components)
+  local removed = false
+  for index = #components, 1, -1 do
+    local component = components[index]
+    if type(component) == "table" and component._mark_lazyvim_progressline then
+      table.remove(components, index)
+      removed = true
+    end
+  end
+  return removed
+end
+
+local function should_enable_lazyvim_statusline()
+  return search_progress_display_mode() == "statusline" and is_lazyvim_environment()
+end
+
+local function sync_lazyvim_statusline_component()
+  local ok_lualine, lualine = pcall(require, "lualine")
+  if not ok_lualine or type(lualine) ~= "table" then
+    return false
+  end
+  if type(lualine.get_config) ~= "function" or type(lualine.setup) ~= "function" then
+    return false
+  end
+
+  local ok_config, lualine_config = pcall(lualine.get_config)
+  if not ok_config or type(lualine_config) ~= "table" then
+    return false
+  end
+  if type(lualine_config.sections) ~= "table" then
+    lualine_config.sections = {}
+  end
+  local section = lualine_config.sections.lualine_x
+  if type(section) ~= "table" then
+    section = {}
+    lualine_config.sections.lualine_x = section
+  end
+
+  local should_enable = should_enable_lazyvim_statusline()
+  local has_component = has_mark_progressline_component(section)
+  if should_enable then
+    if has_component and type(section[1]) == "table" and section[1]._mark_lazyvim_progressline then
+      return true
+    end
+    remove_mark_progressline_component(section)
+    table.insert(section, 1, {
+      mark_progressline_component,
+      cond = function()
+        return M.progressline() ~= ""
+      end,
+      _mark_lazyvim_progressline = true,
+    })
+  elseif has_component then
+    remove_mark_progressline_component(section)
+  else
+    return true
+  end
+
+  local ok_setup = pcall(lualine.setup, lualine_config)
+  return ok_setup
 end
 
 function M.is_enabled()
@@ -2078,6 +2303,14 @@ local function register_autocmds()
     end,
   })
 
+  vim.api.nvim_create_autocmd("User", {
+    group = M._autocmd_group,
+    pattern = "VeryLazy",
+    callback = function()
+      sync_lazyvim_statusline_component()
+    end,
+  })
+
   vim.api.nvim_create_autocmd("CmdlineEnter", {
     group = M._autocmd_group,
     pattern = "/",
@@ -2160,6 +2393,7 @@ local function register_autocmds()
     group = M._autocmd_group,
     callback = function(args)
       M._search_progress_cache[args.buf] = nil
+      reset_last_search_progress(args.buf)
     end,
   })
 end
@@ -2213,15 +2447,40 @@ local function initialize_state_and_palette(reinitialize)
   end
 end
 
+local function resolve_setup_search_progress_display(opts)
+  local ui_opts = (type(opts) == "table" and type(opts.ui) == "table") and opts.ui or nil
+  local requested = nil
+  if ui_opts ~= nil then
+    requested = ui_opts.search_progress_display
+  end
+  if requested ~= nil then
+    return requested == "statusline" and "statusline" or "message"
+  end
+  local legacy_lazyvim_statusline = nil
+  if ui_opts ~= nil then
+    legacy_lazyvim_statusline = ui_opts.lazyvim_statusline
+  end
+  if type(legacy_lazyvim_statusline) == "boolean" then
+    return legacy_lazyvim_statusline and "statusline" or "message"
+  end
+  if is_lazyvim_environment() then
+    return "statusline"
+  end
+  return "message"
+end
+
 function M.setup(opts)
   M._config = config_mod.normalize(opts)
+  M._config.ui.search_progress_display = resolve_setup_search_progress_display(opts)
   M._search_progress_cache = {}
+  reset_last_search_progress()
   reset_search_cmd_state()
   vim.g.loaded_mark = 1
   initialize_state_and_palette(M._setup_done)
   register_commands()
   apply_keymaps()
   register_autocmds()
+  sync_lazyvim_statusline_component()
   set_cascade_context()
 
   local loaded = false

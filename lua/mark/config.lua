@@ -36,6 +36,7 @@ M.defaults = {
   ui = {
     enhanced_picker = false,
     float_list = false,
+    search_progress_display = "message",
   },
   legacy_commands = true,
 }
@@ -83,6 +84,13 @@ local function normalize_palette_count(value)
   return count
 end
 
+local function normalize_search_progress_display(value)
+  if value == "statusline" then
+    return "statusline"
+  end
+  return "message"
+end
+
 function M.normalize(opts)
   local config = copy(M.defaults)
   read_legacy_globals(config)
@@ -99,6 +107,7 @@ function M.normalize(opts)
   config.keymaps = config.keymaps or {}
   config.keymaps.preset = config.keymaps.preset or "lazyvim"
   config.ui = vim.tbl_deep_extend("force", copy(M.defaults.ui), config.ui or {})
+  config.ui.search_progress_display = normalize_search_progress_display(config.ui.search_progress_display)
 
   if type(config.exclude_predicates) ~= "table" then
     config.exclude_predicates = { config.exclude_predicates }

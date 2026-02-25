@@ -508,7 +508,40 @@ Counts are based on the current buffer; global order follows match positions in
 the buffer. If the current index cannot be determined exactly (for some complex
 patterns), 0 is shown for that index (e.g. 0 / 3).
 
-								 *g:mwHistAdd*
+							      *mark-progressline*
+For statusline / winbar integration, mark.nvim exposes a Lua helper: >
+	require('mark').progressline([{opts}])
+<
+It returns a compact one-line progress string for the current buffer, and
+returns an empty string until a successful mark search has run in that buffer.
+The output uses "G" for current-group progress and (when enabled via
+|g:mwSearchGlobalProgress|) "A" for global progress.
+
+Optional opts keys:
+    show_counts    Include current/total counts (default: false)
+    bar_width      Progress bar width (default: 8, clamped to 4..20)
+    separator      Segment separator (default: two spaces)
+
+Example statusline (with progress highlight): >
+	set statusline+=%#MarkSearchProgress#%{luaeval("require('mark').progressline()")}%*
+<
+Example winbar: >
+	set winbar=%#MarkSearchProgress#%{luaeval("require('mark').progressline()")}%*
+<
+Progress display mode is Lua-only and mutually exclusive:
+	message area:   require('mark').setup({ ui = { search_progress_display = "message" } })
+	statusline:     require('mark').setup({ ui = { search_progress_display = "statusline" } })
+In LazyVim, if this option is not explicitly set, default mode is "statusline"
+and mark.nvim auto-injects this progressline into lualine_x.
+The auto-injected lualine text uses progress-bar + index format, e.g.
+"G █████▍░░ 2/3" or "G █████▍░░ 2/3 A ███▌░░░░ 4/9" when global progress
+is enabled.
+Legacy compatibility option `ui.lazyvim_statusline` is still recognized:
+	true  -> statusline
+	false -> message
+<
+
+									 *g:mwHistAdd*
 By default, any marked words are also added to the search (/) and input (@)
 history; if you don't want that, remove the corresponding symbols from: >
     let g:mwHistAdd = '/@'

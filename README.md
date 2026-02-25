@@ -21,6 +21,9 @@
   opts = {
     mark_only = true,
     keymaps = { preset = "lazyvim" }, -- "lazyvim" | "legacy" | "none"
+    ui = {
+      search_progress_display = "statusline", -- "message" | "statusline"
+    },
   },
 }
 ```
@@ -34,6 +37,13 @@ For local development, use a `dir` source:
   main = "mark",
 }
 ```
+
+Search progress display is mutually exclusive:
+
+- `ui.search_progress_display = "message"`: show progress in message area
+- `ui.search_progress_display = "statusline"`: show progress in statusline
+
+When running inside LazyVim and this option is not explicitly set, default mode is `statusline` (auto-injected into `lualine_x`).
 
 ### Manual setup
 
@@ -212,6 +222,7 @@ require("mark").setup({
   ui = {
     enhanced_picker = false,
     float_list = false,
+    search_progress_display = "message",
   },
   legacy_commands = true,
 })
@@ -244,6 +255,46 @@ Search message progress:
   ```
 
 - Progress messages use highlight group `MarkSearchProgress` (bold by default)
+
+Search progress display mode (message vs statusline):
+
+- Modes are mutually exclusive and controlled by `ui.search_progress_display`:
+
+  ```lua
+  require("mark").setup({
+    ui = {
+      search_progress_display = "message", -- or "statusline"
+    },
+  })
+  ```
+
+- In LazyVim, if you do not set this option explicitly, mark.nvim defaults to `statusline` and auto-injects into `lualine_x`.
+- The auto-injected LazyVim `lualine_x` component uses progress-bar + index format (for example `G █████▍░░ 2/3`, or `G █████▍░░ 2/3 A ███▌░░░░ 4/9` when global progress is enabled).
+
+- `require("mark").progressline()` returns a compact one-line progress string for the current buffer.
+- Returns `""` until a successful mark search has run in that buffer.
+- Uses `G` for current-group progress and `A` for global progress.
+- Optional formatting options:
+  - `show_counts` (default `false`)
+  - `bar_width` (default `8`, clamped to `4..20`)
+  - `separator` (default `"  "`)
+- Example `statusline`:
+
+  ```vim
+  set statusline+=%#MarkSearchProgress#%{luaeval("require('mark').progressline()")}%*
+  ```
+
+- Example with options:
+
+  ```vim
+  set statusline+=%#MarkSearchProgress#%{luaeval("require('mark').progressline({show_counts=true, bar_width=10, separator=' | '})")}%*
+  ```
+
+- Example `winbar`:
+
+  ```vim
+  set winbar=%#MarkSearchProgress#%{luaeval("require('mark').progressline()")}%*
+  ```
 
 List UI behavior:
 
