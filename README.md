@@ -246,6 +246,8 @@ Search message progress:
   █████████████████████▊       78.44%
   ```
 
+- Group/global progress counts are computed from match start positions in the current buffer and include overlapping matches (for example, `alias` + `as` inside `alias`).
+
 - To enable global progress in your Neovim config:
 
   ```lua
@@ -300,7 +302,7 @@ List UI behavior:
 
 - `:Marks` / `<leader>ml` uses `vim.ui.select` by default
 - Picker entries show only the pattern text (empty groups show `<empty>`)
-- Set `ui.float_list = true` to use the floating list window with `Grp / Pattern / Count` columns
+- Set `ui.float_list = true` to use the floating list window with `Grp / Pattern / Count` columns (counts include overlapping matches in the current buffer)
 
 ## Persistence
 

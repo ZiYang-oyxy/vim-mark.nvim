@@ -619,6 +619,10 @@ local function search_progress_cache_for_buffer(bufnr)
   return cache
 end
 
+local function pattern_may_span_lines(pattern)
+  return type(pattern) == "string" and (pattern:find("\\_") ~= nil or pattern:find("\\n") ~= nil)
+end
+
 local function collect_match_positions(pattern)
   if not pattern or pattern == "" then
     return nil
@@ -631,20 +635,58 @@ local function collect_match_positions(pattern)
     return cached
   end
 
-  local ok, result = pcall(vim.fn.matchbufline, bufnr, compiled_pattern, 1, "$")
-  if not ok or type(result) ~= "table" then
+  local positions = {}
+  local index_by_position = {}
+  if pattern_may_span_lines(pattern) then
+    local ok, result = pcall(vim.fn.matchbufline, bufnr, compiled_pattern, 1, "$")
+    if not ok or type(result) ~= "table" then
+      return nil
+    end
+    for _, match in ipairs(result) do
+      local line = tonumber(match.lnum) or 0
+      local byteidx = tonumber(match.byteidx) or -1
+      if line > 0 and byteidx >= 0 then
+        local col = byteidx + 1
+        positions[#positions + 1] = { line, col }
+        index_by_position[("%d:%d"):format(line, col)] = #positions
+      end
+    end
+
+    local entry = {
+      positions = positions,
+      index_by_position = index_by_position,
+    }
+    cache.by_pattern[compiled_pattern] = entry
+    return entry
+  end
+
+  local ok_lines, lines = pcall(vim.api.nvim_buf_get_lines, bufnr, 0, -1, false)
+  if not ok_lines or type(lines) ~= "table" then
     return nil
   end
 
-  local positions = {}
-  local index_by_position = {}
-  for _, match in ipairs(result) do
-    local line = tonumber(match.lnum) or 0
-    local byteidx = tonumber(match.byteidx) or -1
-    if line > 0 and byteidx >= 0 then
-      local col = byteidx + 1
-      positions[#positions + 1] = { line, col }
-      index_by_position[("%d:%d"):format(line, col)] = #positions
+  for line_num, line_text in ipairs(lines) do
+    local start_col = 0
+    while start_col <= #line_text do
+      local ok_match, result = pcall(vim.fn.matchstrpos, line_text, compiled_pattern, start_col)
+      if not ok_match or type(result) ~= "table" then
+        break
+      end
+      local match_start = tonumber(result[2]) or -1
+      local match_end = tonumber(result[3]) or -1
+      if match_start < 0 or match_end < 0 then
+        break
+      end
+
+      local col = match_start + 1
+      positions[#positions + 1] = { line_num, col }
+      index_by_position[("%d:%d"):format(line_num, col)] = #positions
+
+      local next_start = match_start + 1
+      if next_start <= start_col then
+        next_start = start_col + 1
+      end
+      start_col = next_start
     end
   end
 
@@ -886,16 +928,155 @@ local function same_position(a, b)
   return #a == 2 and #b == 2 and a[1] == b[1] and a[2] == b[2]
 end
 
+local function normalize_position(position)
+  if type(position) ~= "table" or #position ~= 2 then
+    return nil
+  end
+  local line = math.floor(tonumber(position[1]) or 0)
+  local col = math.floor(tonumber(position[2]) or 0)
+  if line <= 0 or col <= 0 then
+    return nil
+  end
+  return { line, col }
+end
+
+local function is_before_position(lhs, rhs)
+  return lhs[1] < rhs[1] or (lhs[1] == rhs[1] and lhs[2] < rhs[2])
+end
+
+local function is_after_position(lhs, rhs)
+  return lhs[1] > rhs[1] or (lhs[1] == rhs[1] and lhs[2] > rhs[2])
+end
+
+local function first_index_after_position(positions, anchor)
+  for index, position in ipairs(positions) do
+    if is_after_position(position, anchor) then
+      return index
+    end
+  end
+  return nil
+end
+
+local function last_index_before_position(positions, anchor)
+  for index = #positions, 1, -1 do
+    if is_before_position(positions[index], anchor) then
+      return index
+    end
+  end
+  return nil
+end
+
+local function advance_cursor_past_position(line, col, is_backward)
+  if is_backward then
+    if col > 1 then
+      vim.api.nvim_win_set_cursor(0, { line, col - 2 })
+      return true
+    end
+    if line > 1 then
+      local prev_line = vim.api.nvim_buf_get_lines(0, line - 2, line - 1, false)[1] or ""
+      vim.api.nvim_win_set_cursor(0, { line - 1, #prev_line })
+      return true
+    end
+    return false
+  end
+
+  local line_text = vim.api.nvim_buf_get_lines(0, line - 1, line, false)[1] or ""
+  local next_col = col + 1
+  if next_col <= #line_text + 1 then
+    vim.api.nvim_win_set_cursor(0, { line, next_col - 1 })
+    return true
+  end
+  local line_count = vim.api.nvim_buf_line_count(0)
+  if line < line_count then
+    vim.api.nvim_win_set_cursor(0, { line + 1, 0 })
+    return true
+  end
+  return false
+end
+
 local function search(pattern, count, is_backward, current_mark_position, search_type)
   if pattern == "" then
     no_mark_error_message()
     return false
   end
   local requested_count = math.max(1, math.floor(tonumber(count) or 1))
+  local anchor_position = normalize_position(current_mark_position)
+  if not anchor_position then
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    anchor_position = { cursor[1], cursor[2] + 1 }
+  end
+
+  if not pattern_may_span_lines(pattern) then
+    local collected = collect_match_positions(pattern)
+    local positions = collected and collected.positions
+    if type(positions) == "table" then
+      if #positions == 0 then
+        mark_enable(true, false)
+        error_message(search_type, pattern, is_backward)
+        return false
+      end
+
+      local cursor_anchor = anchor_position
+      local target_index = nil
+      local is_wrapped = false
+      local wrapscan = vim.o.wrapscan
+      for _ = 1, requested_count do
+        local next_index
+        if is_backward then
+          next_index = last_index_before_position(positions, cursor_anchor)
+          if not next_index then
+            if not wrapscan then
+              mark_enable(true, false)
+              error_message(search_type, pattern, is_backward)
+              return false
+            end
+            next_index = #positions
+            is_wrapped = true
+          end
+        else
+          next_index = first_index_after_position(positions, cursor_anchor)
+          if not next_index then
+            if not wrapscan then
+              mark_enable(true, false)
+              error_message(search_type, pattern, is_backward)
+              return false
+            end
+            next_index = 1
+            is_wrapped = true
+          end
+        end
+        target_index = next_index
+        cursor_anchor = positions[target_index]
+      end
+
+      local target = target_index and positions[target_index]
+      if target then
+        vim.api.nvim_win_set_cursor(0, { target[1], target[2] - 1 })
+        vim.cmd([[normal! zv]])
+        mark_enable(true, false)
+        local progress_message, progress = safe_search_progress_payload()
+        remember_search_progress(progress)
+        echo_search_progress(progress_message)
+        return true
+      end
+
+      mark_enable(true, false)
+      if is_wrapped then
+        local progress_message, progress = safe_search_progress_payload()
+        remember_search_progress(progress)
+        echo_search_progress(progress_message)
+        return true
+      end
+      error_message(search_type, pattern, is_backward)
+      return false
+    end
+  end
+
   local search_pattern = (is_ignore_case(pattern) and "\\c" or "\\C") .. pattern
   local remaining = requested_count
   local is_wrapped = false
   local is_match = false
+  local skipped_anchor_once = false
   local line = 0
   local col = 0
   local safety_limit = math.max(1000, requested_count * 32)
@@ -913,12 +1094,12 @@ local function search(pattern, count, is_backward, current_mark_position, search
     local prev_line, prev_col = cursor[1], cursor[2] + 1
     local pos = vim.fn.searchpos(search_pattern, is_backward and "b" or "")
     line, col = pos[1], pos[2]
-    if is_backward and line > 0 and same_position({ line, col }, current_mark_position) and remaining == requested_count then
-      if is_match then
-        is_wrapped = true
+    if line > 0 and remaining == requested_count and not skipped_anchor_once and same_position({ line, col }, anchor_position) then
+      is_match = true
+      skipped_anchor_once = true
+      if not advance_cursor_past_position(line, col, is_backward) then
         break
       end
-      is_match = true
     elseif line > 0 then
       is_match = true
       remaining = remaining - 1
@@ -932,7 +1113,7 @@ local function search(pattern, count, is_backward, current_mark_position, search
     end
   end
 
-  local is_stuck_at_current_mark = line > 0 and same_position({ line, col }, current_mark_position) and requested_count == 1
+  local is_stuck_at_current_mark = line > 0 and same_position({ line, col }, anchor_position) and requested_count == 1
   if line > 0 and not is_stuck_at_current_mark then
     vim.cmd([[normal! zv]])
     mark_enable(true, false)

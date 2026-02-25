@@ -373,7 +373,8 @@ highlight group via [N].
 			    require('mark').setup({ ui = { float_list = true } })
 			to use the floating list window with a first-line
 			column description and a right-side count column.
-			Counts are for the current buffer.
+			Counts are for the current buffer and include
+			overlapping matches.
 
 MARK HIGHLIGHTING PALETTES					*mark-palette*
 
@@ -504,9 +505,10 @@ With that enabled, a labeled global block is appended:
     ███████████████████████████▉ 99.64%
     Global  3,920 / 4,998
     █████████████████████▊       78.44%
-Counts are based on the current buffer; global order follows match positions in
-the buffer. If the current index cannot be determined exactly (for some complex
-patterns), 0 is shown for that index (e.g. 0 / 3).
+Counts are based on match start positions in the current buffer (including
+overlapping matches); global order follows those positions in the buffer.
+If the current index cannot be determined exactly (for some complex patterns),
+0 is shown for that index (e.g. 0 / 3).
 
 							      *mark-progressline*
 For statusline / winbar integration, mark.nvim exposes a Lua helper: >
