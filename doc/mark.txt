@@ -286,7 +286,8 @@ Marks can also be stored in |session-file|s with this setting: >
 If you want to explicitly persist the marks into the session file and have
 them restored when that session is loaded, use >
     :MarkSave marks
-and either set |g:mwAutoLoadMarks| (automatic restore on session load) or use >
+and either keep |g:mwAutoLoadMarks| enabled (automatic restore on session
+load; default in the Lua runtime) or use >
     :MarkLoad marks
 <								   *:MarkLoad*
 For the Lua Neovim runtime, the default slot is g:MARK_MARKS. For
@@ -315,13 +316,11 @@ compatibility, loading without {slot} also checks g:MARK_marks.
 			When no marks are currently defined, the {slot} is
 			cleared.
 
-By default, automatic persistence is enabled (so you don't need to explicitly
-|:MarkSave|), but you have to explicitly load the persisted marks in a new Vim
-session via |:MarkLoad|, to avoid that you accidentally drag along outdated
-highlightings from Vim session to session, and be surprised by the arbitrary
-highlight groups and occasional appearance of forgotten marks. If you want to
-automatically restore any marks, set |g:mwAutoLoadMarks|.
-In the Lua Neovim runtime, when automatic loading is disabled, |:MarkList|
+By default in the Lua Neovim runtime, automatic persistence and restore are
+enabled (so you don't need to explicitly |:MarkSave| / |:MarkLoad| between
+sessions). If you prefer manual restore behavior, disable startup loading via
+|g:mwAutoLoadMarks| (or Lua `auto_load = false`) and use |:MarkLoad| when
+needed. In the Lua Neovim runtime, when automatic loading is disabled, |:MarkList|
 performs lazy synchronization: existing in-memory marks are first saved, and
 otherwise persisted marks are loaded before listing.
 
@@ -549,8 +548,9 @@ history; if you don't want that, remove the corresponding symbols from: >
     let g:mwHistAdd = '/@'
 <
 							   *g:mwAutoLoadMarks*
-To enable the automatic restore of marks from a previous Vim session: >
-    let g:mwAutoLoadMarks = 1
+Automatic restore of marks from a previous Vim session is enabled by default
+in the Lua runtime. To disable it: >
+    let g:mwAutoLoadMarks = 0
 <							   *g:mwAutoSaveMarks*
 To turn off the automatic persistence of marks across Vim sessions: >
     let g:mwAutoSaveMarks = 0

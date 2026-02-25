@@ -16,7 +16,7 @@ This project has moved to a **Lua-only Neovim implementation**.
 require("mark").setup({
   mark_only = true,
   keymaps = { preset = "lazyvim" }, -- "lazyvim" | "legacy" | "none"
-  auto_load = false,
+  auto_load = true,
   auto_save = true,
   palette = "original",
 })
@@ -58,6 +58,7 @@ Switch to `preset = "legacy"` for classic defaults, or `preset = "none"` to mana
 
 - Default save/load slot is now `MARKS` (`g:MARK_MARKS`) for cross-session compatibility.
 - Default load without `{slot}` also checks `g:MARK_marks` as a fallback.
+- Auto-restore on startup is enabled by default (`auto_load = true`); set `auto_load = false` to keep manual restore behavior.
 - If `auto_load = false`, running `:MarkList` performs lazy sync:
   - with existing in-memory marks, current marks overwrite persisted marks
   - with no in-memory marks, persisted marks are loaded before listing

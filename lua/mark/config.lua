@@ -19,7 +19,7 @@ end
 
 M.defaults = {
   history_add = "/@",
-  auto_load = false,
+  auto_load = true,
   auto_save = true,
   palette = "original",
   palette_count = -1,
@@ -96,7 +96,7 @@ function M.normalize(opts)
   read_legacy_globals(config)
   config = vim.tbl_deep_extend("force", config, opts or {})
 
-  config.auto_load = to_bool(config.auto_load, false)
+  config.auto_load = to_bool(config.auto_load, true)
   config.auto_save = to_bool(config.auto_save, true)
   config.history_add = normalize_history_add(config.history_add)
   config.palette_count = normalize_palette_count(config.palette_count)

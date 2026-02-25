@@ -51,7 +51,7 @@ If you need custom behavior, call setup explicitly:
 
 ```lua
 require("mark").setup({
-  auto_load = false,
+  auto_load = true,
   auto_save = true,
   palette = "original",
   mark_only = true,
@@ -81,7 +81,7 @@ Below is a mark-first workflow profile where plugin config stays minimal and all
     mark_only = true,
     keymaps = { preset = "none" },
     auto_save = true,
-    auto_load = false,
+    auto_load = true,
     ui = {
       enhanced_picker = false,
       float_list = true,
@@ -203,7 +203,7 @@ Default options:
 ```lua
 require("mark").setup({
   history_add = "/@",
-  auto_load = false,
+  auto_load = true,
   auto_save = true,
   palette = "original",
   palette_count = -1,
@@ -310,8 +310,8 @@ List UI behavior:
 - `:MarkLoad [slot]` restores from the same slot
 - Default slot is `MARKS` (`g:MARK_MARKS`)
 - Default load also falls back to `g:MARK_marks` for compatibility
-- `auto_save` persists marks on `VimLeavePre`
-- `auto_load` restores marks during first setup when data exists
+- By default, marks are saved on `VimLeavePre` (`auto_save = true`) and restored during first setup (`auto_load = true`)
+- Set `auto_load = false` to disable startup restore
 - With `auto_load = false`, `:MarkList` syncs on demand:
   - if marks already exist in memory, they are saved to the default slot
   - if no marks exist in memory, it tries loading from persistent storage
