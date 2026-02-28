@@ -2665,8 +2665,12 @@ function M.setup(opts)
   set_cascade_context()
 
   local loaded = false
-  if config().auto_load and not M._setup_done and persist.has_data(nil) then
-    loaded = load_default_silently()
+  local should_retry_startup_load = false
+  if config().auto_load and not M._setup_done then
+    if persist.has_data(nil) then
+      loaded = load_default_silently()
+    end
+    should_retry_startup_load = not loaded
   end
 
   if not loaded then
@@ -2674,6 +2678,26 @@ function M.setup(opts)
   end
 
   M._setup_done = true
+
+  if should_retry_startup_load then
+    vim.api.nvim_create_autocmd("VimEnter", {
+      group = M._autocmd_group,
+      once = true,
+      callback = function()
+        if not config().auto_load then
+          return
+        end
+        if state_mod.used_count(state()) > 0 then
+          return
+        end
+        if not persist.has_data(nil) then
+          return
+        end
+        load_default_silently()
+      end,
+    })
+  end
+
   return M
 end
 

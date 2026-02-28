@@ -14,7 +14,10 @@ local function should_skip_autosetup_for_lazy()
     return false
   end
 
-  local plugin = plugins["mark.nvim"] or plugins["inkarkat/vim-mark"]
+  local plugin = plugins["mark.nvim"]
+    or plugins["vim-mark.nvim"]
+    or plugins["ZiYang-oyxy/vim-mark.nvim"]
+    or plugins["inkarkat/vim-mark"]
   if type(plugin) ~= "table" then
     return false
   end
