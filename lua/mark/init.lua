@@ -220,6 +220,19 @@ local function visual_mode_not_supported_warning()
   })
 end
 
+local function charwise_selection_end_col(row, byte_col)
+  local line = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1] or ""
+  if byte_col >= #line then
+    return #line
+  end
+
+  local char = vim.fn.strcharpart(line:sub(byte_col + 1), 0, 1)
+  if char == "" then
+    return byte_col
+  end
+  return byte_col + #char
+end
+
 local function get_current_visual_selection()
   local mode_now = vim.fn.mode(1)
   local visual_type = mode_now:sub(1, 1)
@@ -250,7 +263,7 @@ local function get_current_visual_selection()
     local end_line = vim.api.nvim_buf_get_lines(0, end_row, end_row + 1, false)[1] or ""
     end_col = #end_line
   else
-    end_col = end_col + 1
+    end_col = charwise_selection_end_col(end_row, end_col)
   end
 
   local chunks = vim.api.nvim_buf_get_text(0, start_row, start_col, end_row, end_col, {})
