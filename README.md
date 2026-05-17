@@ -66,66 +66,99 @@ require("mark").setup({
 - Better kept in personal config: remapping high-frequency native keys (`n` / `N`), punctuation keys (`!`, `@`), and custom `<leader>` semantics
 - Recommended approach: keep plugin spec focused on `opts`, and put your custom mappings in `lua/config/keymaps.lua`
 
-### LazyVim custom keymap profile (plugin opts + keymaps.lua)
+### LazyVim custom keymap profile (single-file with `keys =`)
 
-Below is a mark-first workflow profile where plugin config stays minimal and all keymaps are managed in `lua/config/keymaps.lua`.
+Below is a mark-first workflow profile where everything (opts and keymaps) lives in one plugin spec, using lazy.nvim's `keys =` field. This keeps the spec self-contained and avoids accidental overrides from other parts of your config.
+
+`should_skip_mark_mapping` is an optional fallback so the `!` mapping does not hijack non-file buffers (dashboards, scratch, etc.).
 
 ```lua
 -- lua/plugins/mark.lua
-{
-  "ZiYang-oyxy/vim-mark.nvim",
-  main = "mark",
-  lazy = false,
-  opts = {
-    search_global_progress = true,
-    mark_only = true,
-    keymaps = { preset = "none" },
-    auto_save = true,
-    auto_load = true,
-    ui = {
-      enhanced_picker = false,
-      float_list = true,
+local function should_skip_mark_mapping()
+  return vim.bo.filetype == "snacks_dashboard" or vim.bo.buftype == "nofile"
+end
+
+local function feed_default_key(lhs)
+  local keys = vim.api.nvim_replace_termcodes(lhs, true, false, true)
+  vim.api.nvim_feedkeys(keys, "n", true)
+end
+
+return {
+  {
+    "ZiYang-oyxy/vim-mark.nvim",
+    main = "mark",
+    lazy = false,
+    opts = {
+      search_global_progress = true,
+      mark_only = true,
+      auto_save = true,
+      auto_load = true,
+      ui = {
+        enhanced_picker = false,
+        float_list = true,
+      },
+      keymaps = { preset = "none" },
+    },
+    keys = {
+      {
+        "!",
+        function()
+          if should_skip_mark_mapping() then
+            feed_default_key("!")
+            return
+          end
+          require("mark").mark_word_or_selection({ group = vim.v.count })
+        end,
+        mode = { "n", "x" },
+        desc = "Mark: Toggle word or selection",
+        silent = true,
+      },
+      {
+        "n",
+        function() require("mark").search_current_mark(false, vim.v.count1) end,
+        desc = "Mark: Next same-color match",
+        silent = true,
+      },
+      {
+        "N",
+        function() require("mark").search_current_mark(true, vim.v.count1) end,
+        desc = "Mark: Prev same-color match",
+        silent = true,
+      },
+      {
+        "#",
+        function() require("mark").search_word_or_selection_mark(false, vim.v.count1) end,
+        desc = "Mark: Next any-color match",
+        silent = true,
+      },
+      {
+        "@",
+        function() require("mark").search_word_or_selection_mark(true, vim.v.count1) end,
+        desc = "Mark: Prev any-color match",
+        silent = true,
+      },
+      {
+        "<leader><cr>",
+        function() require("mark").clear_all() end,
+        desc = "Mark: Clear all",
+        silent = true,
+      },
+      {
+        "<leader>`",
+        function() require("mark").list() end,
+        desc = "Mark: List all",
+        silent = true,
+        nowait = true,
+      },
     },
   },
 }
 ```
 
-```lua
--- lua/config/keymaps.lua
-local keymap = vim.keymap.set
-local function mark_module()
-  return require("mark")
-end
-
-keymap({ "n", "x" }, "!", function()
-  mark_module().mark_word_or_selection({ group = vim.v.count })
-end, { desc = "Mark: Toggle word or selection", silent = true })
-keymap("n", "<leader><cr>", function()
-  mark_module().clear_all()
-end, { desc = "Mark: Clear all", silent = true })
-keymap("n", "n", function()
-  mark_module().search_current_mark(false, vim.v.count1)
-end, { desc = "Mark: Next same-color match", silent = true })
-keymap("n", "N", function()
-  mark_module().search_current_mark(true, vim.v.count1)
-end, { desc = "Mark: Prev same-color match", silent = true })
-keymap("n", "*", function()
-  mark_module().search_word_or_selection_mark(false, vim.v.count1)
-end, { desc = "Mark: Next any-color match", silent = true })
-keymap("n", "#", function()
-  mark_module().search_any_mark(false, vim.v.count1)
-end, { desc = "Mark: Next any-color match", silent = true })
-keymap("n", "@", function()
-  mark_module().search_any_mark(true, vim.v.count1)
-end, { desc = "Mark: Prev any-color match", silent = true })
-keymap("n", "<leader>`", function()
-  mark_module().list()
-end, { desc = "Mark: List all", silent = true, nowait = true })
-```
-
-Note: this profile intentionally overrides native `n` / `N` search navigation. If you prefer Vim-native search semantics, keep those keys unmapped in your `keymaps.lua`.
-
-This profile is meant for fully custom mappings, so it explicitly uses `keymaps = { preset = "none" }`.
+Notes:
+- This profile intentionally overrides native `n` / `N` search navigation. If you prefer Vim-native search, drop those two entries from `keys`.
+- `#` / `@` use `search_word_or_selection_mark` (not `search_any_mark`) so that the landed mark color is recorded, allowing subsequent `n` / `N` to stay locked on that color.
+- `keymaps = { preset = "none" }` disables every built-in mapping; the `keys =` table is the sole source of truth.
 
 ## Features
 

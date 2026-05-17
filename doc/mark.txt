@@ -581,6 +581,11 @@ mark from the word under cursor. The * and # mappings jump forward to any
 color, @ jumps backward to any color, n jumps forward within the same color,
 and N jumps backward within the same color. All keep normal [count] semantics.
 
+If you want to disable the built-in preset entirely and bind every mapping
+yourself, set `keymaps = { preset = "none" }` and define your own keys. See
+the "LazyVim custom keymap profile" section in README.md for a complete
+example using lazy.nvim's `keys =` field.
+
 						     *g:mwExclusionPredicates*
 To exclude some tab pages, windows, or buffers / filetypes from showing mark
 highlightings (you can still "blindly" navigate to marks in there with the
