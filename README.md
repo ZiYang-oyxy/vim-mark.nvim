@@ -104,20 +104,20 @@ keymap("n", "<leader><cr>", function()
   mark_module().clear_all()
 end, { desc = "Mark: Clear all", silent = true })
 keymap("n", "n", function()
-  mark_module().search_any_mark(false, vim.v.count1)
-end, { desc = "Mark: Next any match", silent = true })
+  mark_module().search_current_mark(false, vim.v.count1)
+end, { desc = "Mark: Next same-color match", silent = true })
 keymap("n", "N", function()
-  mark_module().search_any_mark(true, vim.v.count1)
-end, { desc = "Mark: Prev any match", silent = true })
+  mark_module().search_current_mark(true, vim.v.count1)
+end, { desc = "Mark: Prev same-color match", silent = true })
 keymap("n", "*", function()
   mark_module().search_word_or_selection_mark(false, vim.v.count1)
-end, { desc = "Mark: Next word/selection mark", silent = true })
+end, { desc = "Mark: Next any-color match", silent = true })
 keymap("n", "#", function()
-  mark_module().search_word_or_selection_mark(true, vim.v.count1)
-end, { desc = "Mark: Prev word/selection mark", silent = true })
+  mark_module().search_any_mark(false, vim.v.count1)
+end, { desc = "Mark: Next any-color match", silent = true })
 keymap("n", "@", function()
-  mark_module().search_current_mark(true, vim.v.count1)
-end, { desc = "Mark: Prev current match", silent = true })
+  mark_module().search_any_mark(true, vim.v.count1)
+end, { desc = "Mark: Prev any-color match", silent = true })
 keymap("n", "<leader>`", function()
   mark_module().list()
 end, { desc = "Mark: List all", silent = true, nowait = true })
@@ -189,8 +189,7 @@ Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mapp
 
 Set `mark_only = true` to keep `*` / `#` in mark flow:
 
-- resolve pattern from current mark / word (same source logic as `mark_word_or_selection`)
-- ensure the pattern is marked without toggle side effects
+- search existing marks only, without adding a new mark from the word under cursor
 - run directional jump (`*` forward, `#` backward) with `[count]` semantics
 
 `/` takeover is handled via cmdline events, so search preview / recording still works even if your `/` keymap is customized.
