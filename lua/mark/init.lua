@@ -1335,7 +1335,12 @@ end
 
 local function search_word_or_selection_mark(is_backward, count)
   local effective_count = count or vim.v.count1
-  return M.search_any_mark(is_backward, effective_count)
+  local result = M.search_any_mark(is_backward, effective_count)
+  local _, _, landed_index = M.current_mark()
+  if landed_index and landed_index > 0 then
+    state().last_search = landed_index
+  end
+  return result
 end
 
 function M.mark_word(options)
@@ -2182,7 +2187,7 @@ local function apply_keymaps()
   end, { expr = true, silent = true, noremap = true })
   register_keymap("n", "#", function()
     if config().mark_only then
-      search_word_or_selection_mark(true, vim.v.count1)
+      search_word_or_selection_mark(false, vim.v.count1)
       return ""
     end
     if not search_with_star_hash_mapping(true, vim.v.count1) then
@@ -2190,6 +2195,17 @@ local function apply_keymaps()
     end
     return ""
   end, { expr = true, silent = true, noremap = true })
+  if config().mark_only then
+    register_keymap("n", "@", function()
+      search_word_or_selection_mark(true, vim.v.count1)
+    end, map_opts)
+    register_keymap("n", "n", function()
+      M.search_current_mark(false, vim.v.count1)
+    end, map_opts)
+    register_keymap("n", "N", function()
+      M.search_current_mark(true, vim.v.count1)
+    end, map_opts)
+  end
 
   local direct_num = config().direct_group_jump_mapping_num
   for count = 1, direct_num do

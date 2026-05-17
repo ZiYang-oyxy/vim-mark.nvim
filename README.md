@@ -187,10 +187,12 @@ Default preset is `lazyvim`.
 
 Use `keymaps.preset = "legacy"` for classic mappings, or `"none"` to manage mappings yourself.
 
-Set `mark_only = true` to keep `*` / `#` in mark flow:
+Set `mark_only = true` to keep `*`, `#`, `@`, `n`, and `N` in mark flow:
 
 - search existing marks only, without adding a new mark from the word under cursor
-- run directional jump (`*` forward, `#` backward) with `[count]` semantics
+- run any-color jumps with `*` / `#` forward and `@` backward
+- run same-color jumps with `n` forward and `N` backward
+- preserve `[count]` semantics
 
 `/` takeover is handled via cmdline events, so search preview / recording still works even if your `/` keymap is customized.
 After pressing `<CR>`, native `hlsearch` highlighting is cleared automatically so mark highlights take over cleanly.

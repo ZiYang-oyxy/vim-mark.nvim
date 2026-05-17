@@ -230,10 +230,12 @@ SEARCHING						      *mark-searching*
 			With Lua setup option >
 			    require('mark').setup({ mark_only = true })
 <
-			[count]* and [count]# stay in mark flow:
+			[count]*, [count]#, [count]@, [count]n, and [count]N
+			stay in mark flow:
 			- search existing marks only
 			- do not add a new mark from the word under cursor
-			- jump directionally: * forward, # backward
+			- jump any color: * / # forward, @ backward
+			- jump same color: n forward, N backward
 
 			Note: When the cursor is on a mark, the backwards
 			search does not jump to the beginning of the current
@@ -571,12 +573,13 @@ Equivalent Lua setup option: >
 <
 
 							      *mark_only*
-Lua-only option for * / # takeover behavior: >
+Lua-only option for mark navigation takeover behavior: >
 	require('mark').setup({ mark_only = true })
 <
-When enabled, * / # search existing marks only. They do not add a new mark
-from the word under cursor; they jump in direction (* forward, # backward)
-with normal [count] semantics.
+When enabled, * / # / @ search existing marks only. They do not add a new
+mark from the word under cursor. The * and # mappings jump forward to any
+color, @ jumps backward to any color, n jumps forward within the same color,
+and N jumps backward within the same color. All keep normal [count] semantics.
 
 						     *g:mwExclusionPredicates*
 To exclude some tab pages, windows, or buffers / filetypes from showing mark
