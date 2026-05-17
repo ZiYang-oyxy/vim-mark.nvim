@@ -2175,26 +2175,27 @@ local function apply_keymaps()
     end, map_opts)
   end
 
-  register_keymap("n", "*", function()
-    if config().mark_only then
+  if config().mark_only then
+    register_keymap("n", "*", function()
       search_word_or_selection_mark(false, vim.v.count1)
-      return ""
-    end
-    if not search_with_star_hash_mapping(false, vim.v.count1) then
-      return "*"
-    end
-    return ""
-  end, { expr = true, silent = true, noremap = true })
-  register_keymap("n", "#", function()
-    if config().mark_only then
+    end, map_opts)
+    register_keymap("n", "#", function()
       search_word_or_selection_mark(false, vim.v.count1)
+    end, map_opts)
+  else
+    register_keymap("n", "*", function()
+      if not search_with_star_hash_mapping(false, vim.v.count1) then
+        return "*"
+      end
       return ""
-    end
-    if not search_with_star_hash_mapping(true, vim.v.count1) then
-      return "#"
-    end
-    return ""
-  end, { expr = true, silent = true, noremap = true })
+    end, { expr = true, silent = true, noremap = true })
+    register_keymap("n", "#", function()
+      if not search_with_star_hash_mapping(true, vim.v.count1) then
+        return "#"
+      end
+      return ""
+    end, { expr = true, silent = true, noremap = true })
+  end
   if config().mark_only then
     register_keymap("n", "@", function()
       search_word_or_selection_mark(true, vim.v.count1)
